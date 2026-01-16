@@ -1,0 +1,27 @@
+// {
+//   "compilerOptions": {
+//     "module": "commonjs",
+//     "esModuleInterop": true,
+//     "target": "es6",
+//     "moduleResolution": "node",
+//     "sourceMap": true,
+//     "outDir": "dist",
+//     "lib": ["es2015", "dom"]
+//   }
+// }
+
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "CommonJS",
+    "outDir": "./dist",       // Compiled JS files will go to 'dist'
+    "strict": true,
+    "esModuleInterop": true,
+    "baseUrl": "./src",
+    "paths": {
+      "*": ["node_modules/*", "src/*"]
+    },
+  },
+  "include": ["index.ts"],    // Include your 'index.ts' file
+  "exclude": ["node_modules"]
+}
