@@ -1,7 +1,9 @@
 import { Request, Response } from "express";
 import Wallet from "../Models/Wallet";
 import WalletTransaction from "../Models/WalletTransaction";
+import UserModel from "../Models/UserModel";
 import { resStatusData } from "../Responses/Response";
+import { invoiceService } from "../Services/InvoiceService";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 
@@ -44,15 +46,23 @@ export const getOrCreateWallet = async (req: Request, res: Response) => {
 
 /**
  * Get wallet balance
+ * Auto-creates wallet if it doesn't exist for the user
  */
 export const getWalletBalance = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user._id;
 
-    const wallet = await Wallet.findOne({ user_id: userId });
+    // Get or create wallet if it doesn't exist
+    let wallet = await Wallet.findOne({ user_id: userId });
 
     if (!wallet) {
-      return resStatusData(res, "error", "Wallet not found", null);
+      console.log("Wallet not found for user, creating new wallet:", userId);
+      wallet = await Wallet.create({
+        user_id: userId,
+        total_balance: 0,
+        locked_balance: 0,
+        available_balance: 0,
+      });
     }
 
     const balanceInfo = {
@@ -197,6 +207,22 @@ export const verifyRecharge = async (req: Request, res: Response) => {
     transaction.razorpay_payment_id = razorpay_payment_id;
     transaction.balance_after = wallet.total_balance;
     await transaction.save();
+
+    // Get user details for invoice
+    const user = await UserModel.findById(userId);
+    if (user && user.email) {
+      // Send wallet credit invoice
+      invoiceService.sendWalletCreditInvoice({
+        transactionId: transaction._id.toString(),
+        userName: `${user.firstName} ${user.lastName || ""}`.trim(),
+        userEmail: user.email,
+        amount: transaction.amount,
+        paymentMethod: "Razorpay",
+        razorpayPaymentId: razorpay_payment_id,
+        newBalance: wallet.total_balance,
+        company: "LYNKUP",
+      }).catch(err => console.error("Failed to send invoice:", err));
+    }
 
     return resStatusData(res, "success", "Recharge successful", {
       wallet_balance: {

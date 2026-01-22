@@ -12,9 +12,12 @@ export const adminMiddleware = async (
   next: NextFunction
 ): Promise<any> => {
   try {
-    const token = req.header("Authorization");
-    console.log("Token",token)
-    if (!token) return resStatus(res, "false", "Token not found");
+    const authHeader = req.header("Authorization");
+    console.log("Auth Header:", authHeader);
+    if (!authHeader) return resStatus(res, "false", "Token not found");
+    
+    // Extract token by removing "Bearer " prefix
+    const token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
 
     jwt.verify(token, process.env.JWT_SECRET || "JWT_SECRET", async (err: any, decoded: any) => {
       if (err) {
@@ -62,8 +65,11 @@ export const businessMiddleware = async (
   next: NextFunction
 ): Promise<any> => {
   try {
-    const token = req.header("Authorization");
-    if (!token) return resStatus(res, "false", "Token not found");
+    const authHeader = req.header("Authorization");
+    if (!authHeader) return resStatus(res, "false", "Token not found");
+    
+    // Extract token by removing "Bearer " prefix
+    const token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
 
     jwt.verify(token, process.env.JWT_SECRET || "JWT_SECRET", async (err: any, decoded: any) => {
       if (err) {
@@ -111,10 +117,13 @@ export const authMiddleware = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const token = req.header("Authorization");
-    if (!token) {
+    const authHeader = req.header("Authorization");
+    if (!authHeader) {
       return resStatus(res, "false", "Token not found") as any;
     }
+    
+    // Extract token by removing "Bearer " prefix
+    const token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
 
     jwt.verify(token, process.env.JWT_SECRET || "JWT_SECRET", async (err: any, decoded: any) => {
       if (err) {
@@ -151,11 +160,13 @@ export const userMiddleware = async (
   next: NextFunction
 ): Promise<any> => {
   try {
-    const token = req.header("Authorization");
-     console.log("Token",token)
-    if (!token) {
+    const authHeader = req.header("Authorization");
+    console.log("Auth Header:", authHeader);
+    if (!authHeader) {
        resStatus(res, "false", "Token not found");
-    }else{
+    } else {
+    // Extract token by removing "Bearer " prefix
+    const token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
     jwt.verify(token, process.env.JWT_SECRET || "JWT_SECRET", async (err: any, decoded: any) => {
       if (err) {
         if (err.name === "TokenExpiredError") {

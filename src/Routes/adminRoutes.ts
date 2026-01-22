@@ -6,11 +6,21 @@ import { AcceptedBookingByAdmin, canceledBookings, contentUpload, createBooking,
 import { dashboard } from "../Controllers/dashboardController";
 import { createMealTiming, DeleteTimings, getAllTimings } from "../Controllers/FoodTimingController";
 import { adminMiddleware, businessMiddleware } from "../Middelware/Auth"
+import { requireActiveSubscription } from "../Middelware/SubscriptionMiddleware";
+import { requireWalletBalance } from "../Middelware/WalletMiddleware";
 import upload from "../Middelware/Multer";
 import { AcceptedProfileRequest,addPlayerId,userLogout } from "../Controllers/AuthLoginController";
 import { addInfluencerRating}from"../Controllers/ratingController";
 import { editProfileForAdmin}from"../Controllers/ProfileController";
 import { markAllNotificationsAsRead, showNotifications } from "../Controllers/NotificationController";
+import { getSubscriptionAnalytics, getWalletMonitoring, getCreatorAnalytics, getBusinessAnalytics, getPlatformOverview } from "../Controllers/AdminAnalyticsController";
+import {
+  getAllPendingPayouts,
+  getAllPayoutHistory,
+  recordPayoutAsAdmin,
+  getPayoutDashboard,
+  generateGSTInvoice,
+} from "../Controllers/AdminPayoutController";
 export const adminRoutes = (app: Express): void => {
   // ⚠️ AWS S3 disabled - Image upload temporarily removed
   app.post("/admin/signup", /* upload.single('profileImage'), */ errCatch(adminSignup));
@@ -38,11 +48,12 @@ export const adminRoutes = (app: Express): void => {
   app.post("/admin/contentUpload", businessMiddleware, /* upload.single('profileImage'), */ errCatch(contentUpload));
   //superadmin
   // ⚠️ AWS S3 disabled - Image uploads temporarily removed
-  app.post("/admin/createOffer", /* upload.array('profileImage'), */ adminMiddleware, errCatch(createOffer));
-  app.post("/admin/editOffer", /* upload.array('profileImage'), */ adminMiddleware, errCatch(editOffer));
-  app.post("/admin/createOfferBusiness", /* upload.array('profileImage'), */ businessMiddleware, errCatch(createOfferByBusiness));
-  app.post("/admin/editOfferBusiness", /* upload.array('profileImage'), */ businessMiddleware, errCatch(editOfferByBusiness));
-  app.post("/admin/deleteOffer", businessMiddleware, errCatch(deleteOffer));
+  // OFFER CREATION - Requires active subscription AND ₹20k wallet balance
+  app.post("/admin/createOffer", /* upload.array('profileImage'), */ adminMiddleware, requireActiveSubscription, requireWalletBalance, errCatch(createOffer));
+  app.post("/admin/editOffer", /* upload.array('profileImage'), */ adminMiddleware, requireActiveSubscription, errCatch(editOffer));
+  app.post("/admin/createOfferBusiness", /* upload.array('profileImage'), */ businessMiddleware, requireActiveSubscription, requireWalletBalance, errCatch(createOfferByBusiness));
+  app.post("/admin/editOfferBusiness", /* upload.array('profileImage'), */ businessMiddleware, requireActiveSubscription, errCatch(editOfferByBusiness));
+  app.post("/admin/deleteOffer", businessMiddleware, requireActiveSubscription, errCatch(deleteOffer));
   app.post("/superadmin/documentVerify", adminMiddleware, errCatch(uploadDocumentverify));
   app.post("/superadmin/acceptBooking", businessMiddleware, errCatch(AcceptedBookingByAdmin));
   app.post("/superadmin/acceptProfile", adminMiddleware, errCatch(AcceptedProfileRequest));
@@ -75,4 +86,18 @@ export const adminRoutes = (app: Express): void => {
     app.post("/admin/creator_post",businessMiddleware,errCatch(creator_post_seen));
     app.post("/admin/read",businessMiddleware,errCatch(markAllNotificationsAsRead));
     app.post("/admin/addPlayerId",businessMiddleware,errCatch(addPlayerId));
+
+  // PHASE 6: Admin Analytics & Monitoring
+  app.get("/admin/analytics/platform", adminMiddleware, errCatch(getPlatformOverview));
+  app.get("/admin/analytics/subscriptions", adminMiddleware, errCatch(getSubscriptionAnalytics));
+  app.get("/admin/analytics/wallets", adminMiddleware, errCatch(getWalletMonitoring));
+  app.get("/admin/analytics/creators", adminMiddleware, errCatch(getCreatorAnalytics));
+  app.get("/admin/analytics/businesses", adminMiddleware, errCatch(getBusinessAnalytics));
+
+  // PHASE: Admin Payout Management
+  app.get("/admin/payouts/all-pending", adminMiddleware, errCatch(getAllPendingPayouts));
+  app.get("/admin/payouts/all-history", adminMiddleware, errCatch(getAllPayoutHistory));
+  app.post("/admin/payouts/record", adminMiddleware, errCatch(recordPayoutAsAdmin));
+  app.get("/admin/payouts/dashboard", adminMiddleware, errCatch(getPayoutDashboard));
+  app.post("/admin/payouts/generate-invoice/:booking_id", adminMiddleware, errCatch(generateGSTInvoice));
 };

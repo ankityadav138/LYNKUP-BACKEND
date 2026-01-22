@@ -30,6 +30,20 @@ interface BookingInterface {
   review: Boolean;
   content_media: string;
   creator_post_seen:Boolean;
+  
+  // Payout Tracking Fields
+  payout_amount?: number;
+  payout_date?: Date;
+  payout_status?: "pending" | "paid" | "failed";
+  payout_mode?: "UPI" | "Bank Transfer" | "Cash";
+  payout_remarks?: string;
+  milestone_achieved?: string;
+  
+  // Rescheduling Fields
+  reschedule_reason?: string;
+  reschedule_requested_at?: Date;
+  previous_date?: Date;
+  previous_time?: string;
 }
 const BookingSchema = new Schema<BookingInterface>(
   {
@@ -105,6 +119,52 @@ const BookingSchema = new Schema<BookingInterface>(
     creator_post_seen: {
       type: Boolean,
       default: false,
+    },
+    
+    // Payout Tracking Fields
+    payout_amount: {
+      type: Number,
+      required: false,
+    },
+    payout_date: {
+      type: Date,
+      required: false,
+    },
+    payout_status: {
+      type: String,
+      enum: ["pending", "paid", "failed"],
+      required: false,
+    },
+    payout_mode: {
+      type: String,
+      enum: ["UPI", "Bank Transfer", "Cash"],
+      required: false,
+    },
+    payout_remarks: {
+      type: String,
+      default: "",
+    },
+    milestone_achieved: {
+      type: String,
+      default: "",
+    },
+    
+    // Rescheduling Fields
+    reschedule_reason: {
+      type: String,
+      default: "",
+    },
+    reschedule_requested_at: {
+      type: Date,
+      required: false,
+    },
+    previous_date: {
+      type: Date,
+      required: false,
+    },
+    previous_time: {
+      type: String,
+      required: false,
     },
 
   },

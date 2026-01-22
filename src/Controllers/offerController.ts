@@ -9,6 +9,7 @@ import { sendBookingCancellationEmailMailgun, sendBookingCompleteEmailMailgun } 
 import { sendNotification } from "./NotificationController";
 import Wallet from "../Models/Wallet";
 import WalletTransaction from "../Models/WalletTransaction";
+import { invoiceService } from "../Services/InvoiceService";
 
 const MINIMUM_OFFER_AMOUNT = 20000;
 export const createOffer = async (
@@ -169,10 +170,18 @@ export const createOfferByBusiness = async (
     content_delivery,
     content_guidelines,
     ending_type,
+    collaboration_type = "milestone",
+    fixed_amount,
   } = req.body;
 
-  // Check wallet balance FIRST
-  let wallet = await Wallet.findOne({ user_id: business_id });
+  // Get wallet info from middleware (balance already checked)
+  const walletInfo = req.walletInfo;
+  let wallet = walletInfo?.wallet;
+  
+  // Fallback: Get wallet if middleware didn't provide it
+  if (!wallet) {
+    wallet = await Wallet.findOne({ user_id: business_id });
+  }
   
   // Create wallet if doesn't exist
   if (!wallet) {
@@ -182,21 +191,6 @@ export const createOfferByBusiness = async (
       locked_balance: 0,
       available_balance: 0,
     });
-  }
-
-  // Check if sufficient balance
-  if (wallet.available_balance < MINIMUM_OFFER_AMOUNT) {
-    resStatusData(
-      res,
-      "error",
-      "Insufficient wallet balance",
-      {
-        available_balance: wallet.available_balance,
-        required_balance: MINIMUM_OFFER_AMOUNT,
-        shortage: MINIMUM_OFFER_AMOUNT - wallet.available_balance,
-      }
-    );
-    return;
   }
 
   const files = req.files;
@@ -224,6 +218,45 @@ const locations = parsedLocations.map((loc: any) => ({
     resStatus(res, "false", "offer_type must be 'visite' or 'delivery'.");
     return;
   }
+  
+  // Validate collaboration type
+  if (collaboration_type && !["milestone", "paid"].includes(collaboration_type)) {
+    resStatus(res, "false", "collaboration_type must be 'milestone' or 'paid'.");
+    return;
+  }
+  
+  // Validate paid collaboration
+  if (collaboration_type === "paid") {
+    if (!fixed_amount || parseFloat(fixed_amount) <= 0) {
+      resStatus(res, "false", "Fixed amount is required and must be greater than 0 for paid collaborations.");
+      return;
+    }
+  }
+  
+  // Calculate total lock amount
+  let totalLockAmount = MINIMUM_OFFER_AMOUNT; // ₹20,000 security deposit
+  if (collaboration_type === "paid" && fixed_amount) {
+    totalLockAmount += parseFloat(fixed_amount);
+  }
+  
+  // Check wallet balance for total amount needed
+  if (wallet.available_balance < totalLockAmount) {
+    resStatusData(res, "error", 
+      `Insufficient wallet balance. Required: ₹${totalLockAmount.toLocaleString("en-IN")}`,
+      {
+        code: "INSUFFICIENT_BALANCE",
+        breakdown: {
+          security_deposit: MINIMUM_OFFER_AMOUNT,
+          creator_payment: collaboration_type === "paid" ? parseFloat(fixed_amount) : 0,
+          total_required: totalLockAmount,
+        },
+        available_balance: wallet.available_balance,
+        shortfall: totalLockAmount - wallet.available_balance,
+      }
+    );
+    return;
+  }
+  
   const startDate = new Date(parsedvalid.start);
   const endDate = new Date(parsedvalid.end);
   if (ending_type === "days") {
@@ -242,7 +275,7 @@ const locations = parsedLocations.map((loc: any) => ({
 
     // Lock wallet balance BEFORE creating offer
     try {
-      await wallet.lockAmount(MINIMUM_OFFER_AMOUNT);
+      await wallet.lockAmount(totalLockAmount);
 
       // Calculate withdrawal eligibility date (30 days from now)
       const withdrawalDate = new Date();
@@ -279,25 +312,54 @@ const locations = parsedLocations.map((loc: any) => ({
           end: endDate,
         },
         ending_type,
-        locked_amount: MINIMUM_OFFER_AMOUNT,
+        collaboration_type: collaboration_type || "milestone",
+        fixed_amount: collaboration_type === "paid" ? parseFloat(fixed_amount) : 0,
+        locked_amount: totalLockAmount,
         withdrawal_eligibility_date: withdrawalDate,
         is_eligible_for_withdrawal: false,
         withdrawal_requested: false,
       });
 
       // Create wallet transaction record
-      await WalletTransaction.create({
+      const transaction = await WalletTransaction.create({
         wallet_id: wallet._id,
         user_id: business_id,
         type: "lock",
-        amount: MINIMUM_OFFER_AMOUNT,
+        amount: totalLockAmount,
         status: "completed",
-        description: `Amount locked for offer: ${name}`,
+        description: collaboration_type === "paid" 
+          ? `Locked for paid collab: ${name} (₹${MINIMUM_OFFER_AMOUNT.toLocaleString()} security + ₹${fixed_amount.toLocaleString()} payment)`
+          : `Amount locked for offer: ${name}`,
         reference_type: "offer",
         reference_id: offer._id,
-        balance_before: wallet.available_balance + MINIMUM_OFFER_AMOUNT,
+        balance_before: wallet.available_balance + totalLockAmount,
         balance_after: wallet.available_balance,
       });
+
+      // Get user details and send invoice
+      const user = await UserModel.findById(business_id);
+      if (user && user.email) {
+        const gstAmount = collaboration_type === "paid" 
+          ? Math.round((parseFloat(fixed_amount) * 18) / 100)
+          : 0;
+        
+        invoiceService.sendWalletDeductionInvoice({
+          transactionId: transaction._id.toString(),
+          userName: `${user.firstName} ${user.lastName || ""}`.trim(),
+          userEmail: user.email,
+          amount: totalLockAmount,
+          purpose: collaboration_type === "paid" 
+            ? "Paid Collaboration - Offer Creation"
+            : "Offer Security Deposit",
+          description: collaboration_type === "paid"
+            ? `Security deposit ₹${MINIMUM_OFFER_AMOUNT.toLocaleString()} + Creator payment ₹${fixed_amount.toLocaleString()} (GST 18% = ₹${gstAmount.toLocaleString()})`
+            : `Security deposit locked for creating offer: ${name}. Will be released after 30 days.`,
+          offerId: offer._id.toString(),
+          offerName: name,
+          remainingBalance: wallet.available_balance,
+          company: "LYNKUP",
+        }).catch(err => console.error("Failed to send invoice:", err));
+      }
 
       resStatusData(res, "success", "Offer created successfully by business", {
         offer,
@@ -312,9 +374,9 @@ const locations = parsedLocations.map((loc: any) => ({
       return;
     }
   }else{
-    // Lock wallet balance BEFORE creating offer
+    // Lock wallet balance BEFORE creating offer (ending_type = "booking")
     try {
-      await wallet.lockAmount(MINIMUM_OFFER_AMOUNT);
+      await wallet.lockAmount(totalLockAmount);
 
       // Calculate withdrawal eligibility date (30 days from now)
       const withdrawalDate = new Date();
@@ -347,23 +409,29 @@ const locations = parsedLocations.map((loc: any) => ({
         min_follower,
         min_reach,
         ending_type,
-        locked_amount: MINIMUM_OFFER_AMOUNT,
+        collaboration_type: collaboration_type || "milestone",
+        fixed_amount: collaboration_type === "paid" ? parseFloat(fixed_amount) : 0,
+        locked_amount: totalLockAmount,
         withdrawal_eligibility_date: withdrawalDate,
         is_eligible_for_withdrawal: false,
         withdrawal_requested: false,
       });
 
       // Create wallet transaction record
+      const transactionDescription = collaboration_type === "paid"
+        ? `Locked for paid collaboration offer: ${name} (₹20,000 security + ₹${fixed_amount} payment)`
+        : `Locked for milestone-based offer: ${name}`;
+
       await WalletTransaction.create({
         wallet_id: wallet._id,
         user_id: business_id,
         type: "lock",
-        amount: MINIMUM_OFFER_AMOUNT,
+        amount: totalLockAmount,
         status: "completed",
-        description: `Amount locked for offer: ${name}`,
+        description: transactionDescription,
         reference_type: "offer",
         reference_id: offer._id,
-        balance_before: wallet.available_balance + MINIMUM_OFFER_AMOUNT,
+        balance_before: wallet.available_balance + totalLockAmount,
         balance_after: wallet.available_balance,
       });
 
@@ -856,24 +924,52 @@ function formatIndianNumber(x:any) {
   return Number(x).toLocaleString('en-US');
 }
 
-
+/**
+ * Show Offers to Creators (User)
+ * 
+ * Shows all offers across India to creators with optional location-based filtering.
+ * Creators from any city/state can view all offers and filter by location.
+ * 
+ * Route: POST /user/showOfferUser
+ * Auth: userMiddleware (JWT token required)
+ * 
+ * Request Body:
+ * - latitude: number (optional) - For proximity-based sorting
+ * - longitude: number (optional) - For proximity-based sorting
+ * 
+ * Query Parameters:
+ * - page: number (default: 1) - Pagination page number
+ * - limit: number (default: 10) - Results per page
+ * - search: string (optional) - Search by offer name or type
+ * - selectedDate: string (optional) - Filter by specific date (YYYY-MM-DD)
+ * - city: string (optional) - Filter by business city (case-insensitive)
+ * - state: string (optional) - Filter by business state (case-insensitive)
+ * 
+ * Response:
+ * - All live offers from filtered businesses
+ * - Each offer includes lock status based on creator's followers/reach
+ * - lock_reason explains why offer is locked (if applicable)
+ * 
+ * Lock Logic:
+ * - Locked if creator doesn't meet min_follower requirement
+ * - Locked if creator doesn't meet min_reach requirement
+ * - Locked if selectedDate falls on offer's offDay
+ * 
+ * Examples:
+ * - Mumbai creator viewing Delhi offers: ✅ Allowed
+ * - Filter by city: ?city=Mumbai
+ * - Filter by state: ?state=Maharashtra
+ * - Filter by both: ?city=Mumbai&state=Maharashtra
+ * - Search + location: ?search=brunch&city=Delhi
+ */
 export const showOfferUser = async (
   req: Request | any,
   res: Response
 ): Promise<void> => {
   const userId = req.user._id;
-  // const { page = 1, limit = 10, search,startDate, endDate} = req.query;
-  const { page = 1, limit = 10, search, selectedDate } = req.query;
+  const { page = 1, limit = 10, search, selectedDate, city, state } = req.query;
   const { latitude, longitude } = req.body;
-     console.log("============",latitude,longitude)
-  if (!latitude || !longitude) {
-    resStatus(
-      res,
-      "false",
-      "Coordinates (latitude and longitude) are required"
-    );
-    return
-  }
+  
   try {
     const pageNumber = parseInt(page as string, 10);
     const limitNumber = parseInt(limit as string, 10);
@@ -881,18 +977,36 @@ export const showOfferUser = async (
     const currentUser = await UserModel.findById(userId).select("businessDiscovery insights");
     const userFollowers = currentUser?.businessDiscovery?.followers_count || 0;
     const userReach = currentUser?.insights?.reach || 0;
-    // Find nearby businesses
-    const nearbyBusinesses = await UserModel.find({
-      userType: "business",
-      "location.coordinates": {
-        $near: {
-          $geometry: { type: "Point", coordinates: [longitude, latitude] },
-          $maxDistance: 100000,
+    
+    // Build business filter based on location preferences
+    let businessFilter: any = { userType: "business" };
+    
+    // Optional city/state filtering
+    if (city) {
+      businessFilter.city = { $regex: new RegExp(city as string, "i") };
+    }
+    if (state) {
+      businessFilter["manual_location.state"] = { $regex: new RegExp(state as string, "i") };
+    }
+    
+    // If latitude/longitude provided, prioritize nearby businesses (optional sorting, not filtering)
+    let businesses;
+    if (latitude && longitude) {
+      businesses = await UserModel.find({
+        ...businessFilter,
+        "location.coordinates": {
+          $near: {
+            $geometry: { type: "Point", coordinates: [parseFloat(longitude), parseFloat(latitude)] },
+            $maxDistance: 1000000, // 1000km - much larger radius to show more offers
+          },
         },
-      },
-    }).select("_id");
+      }).select("_id");
+    } else {
+      // Show all businesses across India when no location provided
+      businesses = await UserModel.find(businessFilter).select("_id");
+    }
 
-    const businessIds = nearbyBusinesses.map((business) => business._id);
+    const businessIds = businesses.map((business) => business._id);
     const bookedOffers = await BookingModel.find({ userId }).select("offerId");
     const bookedOfferIds = bookedOffers.map((booking) => booking.offerId);
     let dateFilter: any = {};
@@ -1652,5 +1766,154 @@ export const deleteOfferImage = async (req: Request, res: Response) => {
     return res
       .status(500)
       .json({ success: false, message: "Internal server error." });
+  }
+};
+
+/**
+ * PHASE 5: Universal Search
+ * Search offers by multiple criteria
+ */
+export const universalSearch = async (
+  req: Request | any,
+  res: Response
+): Promise<void> => {
+  try {
+    const { 
+      query, 
+      city, 
+      collaboration_type, 
+      restro_type, 
+      offer_type,
+      min_amount,
+      max_amount,
+      page = 1,
+      limit = 20
+    } = req.query;
+
+    const searchFilter: any = {
+      status: "live",
+      isdeleted: false,
+    };
+
+    // Text search across multiple fields
+    if (query) {
+      searchFilter.$or = [
+        { name: { $regex: query, $options: "i" } },
+        { details: { $regex: query, $options: "i" } },
+        { offering: { $regex: query, $options: "i" } },
+        { tags: { $regex: query, $options: "i" } },
+        { hashtags: { $regex: query, $options: "i" } },
+        { content_guidelines: { $regex: query, $options: "i" } },
+        { creator_requirement: { $regex: query, $options: "i" } },
+      ];
+    }
+
+    // Location filter
+    if (city) {
+      searchFilter["address.address"] = { $regex: city, $options: "i" };
+    }
+
+    // Collaboration type filter (milestone | paid)
+    if (collaboration_type && ["milestone", "paid"].includes(collaboration_type)) {
+      searchFilter.collaboration_type = collaboration_type;
+    }
+
+    // Restaurant type filter (luxury | ordinary)
+    if (restro_type && ["luxury", "ordinary"].includes(restro_type)) {
+      searchFilter.restro_type = restro_type;
+    }
+
+    // Offer type filter (visite | delivery)
+    if (offer_type && ["visite", "delivery"].includes(offer_type)) {
+      searchFilter.offer_type = offer_type;
+    }
+
+    // Amount range filter (for paid collaborations)
+    if (min_amount || max_amount) {
+      searchFilter.fixed_amount = {};
+      if (min_amount) searchFilter.fixed_amount.$gte = Number(min_amount);
+      if (max_amount) searchFilter.fixed_amount.$lte = Number(max_amount);
+    }
+
+    const offers = await OfferModel.find(searchFilter)
+      .populate("business_id", "firstName lastName profileImage city address email number")
+      .populate("timeId")
+      .sort({ createdAt: -1 })
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit));
+
+    const total = await OfferModel.countDocuments(searchFilter);
+
+    resStatusData(res, "success", "Search results", {
+      offers,
+      count: offers.length,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (error: any) {
+    console.error("Universal search error:", error);
+    resStatus(res, "false", error.message || "Search failed");
+  }
+};
+
+/**
+ * PHASE 5: Get Paid Collaborations
+ * Get all paid collaboration offers
+ */
+export const getPaidCollaborations = async (
+  req: Request | any,
+  res: Response
+): Promise<void> => {
+  try {
+    const { 
+      city, 
+      min_amount, 
+      max_amount,
+      page = 1,
+      limit = 20
+    } = req.query;
+
+    const filter: any = {
+      collaboration_type: "paid",
+      status: "live",
+      isdeleted: false,
+    };
+
+    if (city) {
+      filter["address.address"] = { $regex: city, $options: "i" };
+    }
+
+    if (min_amount || max_amount) {
+      filter.fixed_amount = {};
+      if (min_amount) filter.fixed_amount.$gte = Number(min_amount);
+      if (max_amount) filter.fixed_amount.$lte = Number(max_amount);
+    }
+
+    const offers = await OfferModel.find(filter)
+      .populate("business_id", "firstName lastName profileImage city address")
+      .populate("timeId")
+      .sort({ fixed_amount: -1 })
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit));
+
+    const total = await OfferModel.countDocuments(filter);
+
+    resStatusData(res, "success", "Paid collaborations fetched", {
+      offers,
+      count: offers.length,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (error: any) {
+    console.error("Get paid collaborations error:", error);
+    resStatus(res, "false", error.message || "Failed to fetch paid collaborations");
   }
 };

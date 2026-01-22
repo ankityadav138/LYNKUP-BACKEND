@@ -1126,3 +1126,90 @@ export const creator_post_seen = async (req: any, res:Response): Promise<void> =
     resStatus(res, "false", "An error occurred while updating the booking status.");
   }
 }
+
+/**
+ * PHASE 5: Reschedule Booking
+ * Allow influencer to request new date/time for accepted booking
+ */
+export const rescheduleBooking = async (
+  req: Request | any,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user._id;
+    const { booking_id, new_date, new_time, reschedule_reason } = req.body;
+
+    // Validate
+    if (!booking_id || !new_date || !new_time) {
+      resStatus(res, "false", "Booking ID, new date, and new time are required");
+      return;
+    }
+
+    // Get booking
+    const booking = await BookingModel.findById(booking_id)
+      .populate("userId")
+      .populate("restoId")
+      .populate("offerId");
+
+    if (!booking) {
+      resStatus(res, "false", "Booking not found");
+      return;
+    }
+
+    // Check if user owns booking
+    if ((booking.userId as any)._id.toString() !== userId.toString()) {
+      resStatus(res, "false", "Unauthorized - You don't own this booking");
+      return;
+    }
+
+    // Check if can reschedule
+    if (booking.status === "canceled" || booking.status === "past") {
+      resStatus(res, "false", "Cannot reschedule canceled or past bookings");
+      return;
+    }
+
+    if (booking.status === "rejected") {
+      resStatus(res, "false", "Cannot reschedule rejected bookings");
+      return;
+    }
+
+    // Save old dates for reference
+    const old_date = booking.selected_date;
+    const old_time = booking.selected_time;
+
+    // Update booking
+    booking.selected_date = new Date(new_date);
+    booking.selected_time = new_time;
+    booking.status = "pending"; // Reset to pending for business approval
+    booking.reschedule_reason = reschedule_reason || "Requested reschedule";
+    booking.reschedule_requested_at = new Date();
+    booking.previous_date = old_date;
+    booking.previous_time = old_time;
+    await booking.save();
+
+    // Send notification to business
+    const user = booking.userId as any;
+    const business = booking.restoId as any;
+    const offer = booking.offerId as any;
+
+    await createNotification(
+      new mongoose.Types.ObjectId(business._id.toString()),
+      new mongoose.Types.ObjectId(userId.toString()),
+      "Reschedule Request",
+      `${user.firstName || "Creator"} requested to reschedule booking for "${offer.name}" from ${old_time} to ${new_time}`,
+      user.profileImage || "image/default.png",
+      "booking_reschedule"
+    );
+
+    resStatusData(res, "success", "Reschedule request sent to business", {
+      booking,
+      old_date,
+      old_time,
+      new_date,
+      new_time,
+    });
+  } catch (error: any) {
+    console.error("Reschedule booking error:", error);
+    resStatus(res, "false", error.message || "Failed to reschedule booking");
+  }
+};

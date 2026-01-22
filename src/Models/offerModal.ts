@@ -34,6 +34,16 @@ interface OfferInterface {
   withdrawal_eligibility_date?: Date;
   withdrawal_requested?: boolean;
   withdrawal_request_id?: ObjectId;
+  
+  // New Fields for Paid Collaborations
+  collaboration_type?: "milestone" | "paid";
+  fixed_amount?: number;
+  milestone_slabs?: Array<{
+    reach?: number;
+    followers?: number;
+    engagement?: number;
+    reward: number;
+  }>;
 }
 
 const OfferSchema = new Schema<OfferInterface>(
@@ -209,6 +219,23 @@ const OfferSchema = new Schema<OfferInterface>(
       type: mongoose.Types.ObjectId,
       ref: "WithdrawalRequest",
     },
+    collaboration_type: {
+      type: String,
+      enum: ["milestone", "paid"],
+      default: "milestone",
+    },
+    fixed_amount: {
+      type: Number,
+      default: 0,
+    },
+    milestone_slabs: [
+      {
+        reach: { type: Number },
+        followers: { type: Number },
+        engagement: { type: Number },
+        reward: { type: Number, required: true },
+      },
+    ],
   },
   {
     timestamps: true,

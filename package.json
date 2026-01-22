@@ -16,6 +16,7 @@
     "@aws-sdk/lib-storage": "^3.758.0",
     "@aws-sdk/s3-request-presigner": "^3.758.0",
     "@onesignal/node-onesignal": "^5.0.0-alpha-02",
+    "@types/pdfkit": "^0.17.4",
     "aws-sdk": "^2.1692.0",
     "axios": "^1.7.9",
     "bcrypt": "^5.1.1",
@@ -32,6 +33,7 @@
     "node-cron": "^3.0.3",
     "nodemailer": "^6.10.0",
     "nodemailer-mailgun-transport": "^2.1.5",
+    "pdfkit": "^0.17.2",
     "razorpay": "^2.9.6",
     "redis": "^4.7.0",
     "remove": "^0.1.5"

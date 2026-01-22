@@ -97,6 +97,24 @@ export const createSubscriptionOrder = async (
       return;
     }
 
+    // Check if user already has an active subscription
+    const existingSubscription = await SubscriptionModel.findOne({
+      userId,
+      status: "active",
+      endDate: { $gt: new Date() }, // Not expired
+    });
+
+    if (existingSubscription) {
+      resStatusData(res, "error", "You already have an active subscription. Please wait for it to expire before purchasing a new one.", {
+        currentSubscription: {
+          tier: existingSubscription.tier,
+          endDate: existingSubscription.endDate,
+          daysRemaining: Math.ceil((existingSubscription.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+        },
+      });
+      return;
+    }
+
     // Create Razorpay order
     const razorpayOrder = await razorpay.orders.create({
       amount: selectedTier.price * 100,
@@ -274,47 +292,56 @@ export const verifySubscription = async (
 
     await subscription.save();
 
+    // Expire any old active subscriptions for this user
+    await SubscriptionModel.updateMany(
+      {
+        userId,
+        _id: { $ne: subscription._id }, // Not the current subscription
+        status: "active",
+      },
+      {
+        $set: {
+          status: "expired",
+          cancellationReason: "Replaced by new subscription",
+          cancellationDate: new Date(),
+        },
+      }
+    );
+
     // Get user for invoice details
     const user = await User.findById(userId);
     const plan = await SubscriptionPlanModel.findOne({ isActive: true });
 
     // Send invoice emails
-    // if (user && plan) {
-    //   const invoiceDetails = {
-    //     invoiceId: `INV-${Date.now()}-${userId.toString().slice(-6).toUpperCase()}`,
-    //     userName: (user as any).username || (user as any).name || "User",
-    //     userEmail: user.email || "noreply@lynkup.com",
-    //     subscriptionId: (subscription._id as any).toString(),
-    //     planName: plan.name,
-    //     tier: subscription.tier,
-    //     amount: subscription.amount,
-    //     currency: subscription.currency || "INR",
-    //     startDate: subscription.startDate,
-    //     endDate: subscription.endDate,
-    //     duration: subscription.duration,
-    //     discount: 0,
-    //     features: plan.features,
-    //     company: "Lynkup",
-    //   };
+    if (user && plan) {
+      const invoiceDetails = {
+        invoiceId: `INV-${Date.now()}-${userId.toString().slice(-6).toUpperCase()}`,
+        userName: `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() || "User",
+        userEmail: user.email || "noreply@lynkup.com",
+        subscriptionId: (subscription._id as any).toString(),
+        planName: plan.name,
+        tier: subscription.tier,
+        amount: subscription.amount,
+        currency: subscription.currency || "INR",
+        startDate: subscription.startDate,
+        endDate: subscription.endDate,
+        duration: subscription.duration,
+        discount: 0,
+        features: plan.features,
+        company: "LYNKUP",
+      };
 
-      // Promise.all([
-      //   invoiceService.sendInvoiceToUser(invoiceDetails),
-      //   invoiceService.sendAdminNotification(invoiceDetails),
-      // ]).catch(err => console.error('[Invoice] Error sending invoice:', err));
-    // }
+      Promise.all([
+        invoiceService.sendInvoiceToUser(invoiceDetails),
+        invoiceService.sendAdminNotification(invoiceDetails),
+      ]).catch(err => console.error('[Invoice] Error sending invoice:', err));
+    }
 
     // Update user with subscription details
     const userUpdate = {
       currentSubscriptionId: subscription._id,
       hasActiveSubscription: true,
       subscriptionExpiryDate: endDate,
-      // Backward compatibility fields
-      activesubscription: true,
-      subscriptionPlanDuration: `${subscription.duration} months`,
-      subscriptionStartDate: startDate,
-      subscriptionEndDate: endDate,
-      razorpayPaymentId: razorpay_payment_id,
-      subscriptionAmount: subscription.amount,
     };
 
     console.log("Updating user with subscription details:", userUpdate);
@@ -388,7 +415,7 @@ export const getSubscriptionDetails = async (
       // Update user
       await User.findByIdAndUpdate(userId, {
         hasActiveSubscription: false,
-        activesubscription: false,
+        currentSubscriptionId: null,
       });
 
       resStatusData(res, "success", "Subscription expired", {
@@ -541,7 +568,7 @@ export const cancelSubscription = async (
     // Update user
     await User.findByIdAndUpdate(userId, {
       hasActiveSubscription: false,
-      activesubscription: false,
+      currentSubscriptionId: null,
     });
 
     resStatusData(res, "success", "Subscription cancelled successfully", {
@@ -613,6 +640,100 @@ export const getInvoice = async (
   } catch (error: any) {
     console.error("Get invoice error:", error);
     resStatusData(res, "error", "Failed to retrieve invoice", {
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * GET /api/subscription/status
+ * Check subscription status for authenticated user
+ * Returns detailed subscription information
+ */
+export const getSubscriptionStatus = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id || (req as any).user?._id;
+
+    if (!userId) {
+      resStatusData(res, "error", "User not authenticated", {});
+      return;
+    }
+
+    // Get user
+    const user = await User.findById(userId);
+    if (!user) {
+      resStatusData(res, "error", "User not found", {});
+      return;
+    }
+
+    // Find active subscription
+    const subscription = await SubscriptionModel.findOne({
+      userId,
+      status: "active",
+    }).populate("planId");
+
+    if (!subscription) {
+      resStatusData(res, "success", "No active subscription", {
+        hasActiveSubscription: false,
+        requiresSubscription: user.userType === "business",
+        subscriptionDetails: null,
+      });
+      return;
+    }
+
+    // Check if expired
+    const now = new Date();
+    const isExpired = subscription.endDate < now;
+
+    if (isExpired) {
+      // Mark as expired
+      subscription.status = "expired";
+      await subscription.save();
+
+      await User.findByIdAndUpdate(userId, {
+        hasActiveSubscription: false,
+        currentSubscriptionId: null,
+      });
+
+      resStatusData(res, "success", "Subscription expired", {
+        hasActiveSubscription: false,
+        requiresSubscription: user.userType === "business",
+        subscriptionDetails: {
+          status: "expired",
+          expiryDate: subscription.endDate,
+          tier: subscription.tier,
+        },
+      });
+      return;
+    }
+
+    // Calculate days remaining
+    const daysRemaining = Math.ceil(
+      (subscription.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    resStatusData(res, "success", "Active subscription found", {
+      hasActiveSubscription: true,
+      subscriptionDetails: {
+        id: subscription._id,
+        tier: subscription.tier,
+        duration: subscription.duration,
+        status: subscription.status,
+        startDate: subscription.startDate,
+        endDate: subscription.endDate,
+        expiryDate: subscription.endDate,
+        daysRemaining,
+        requiresRenewal: daysRemaining <= 7,
+        amount: subscription.amount,
+        planName: (subscription.planId as any)?.name || "Business Plan",
+      },
+    });
+  } catch (error: any) {
+    console.error("Get subscription status error:", error);
+    resStatusData(res, "error", "Failed to get subscription status", {
       error: error.message,
     });
   }

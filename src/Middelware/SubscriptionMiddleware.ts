@@ -12,12 +12,13 @@ export const requireActiveSubscription = async (
   req: Request,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
     const userId = (req as any).user?.id || (req as any).user?._id;
 
     if (!userId) {
-      return resStatusData(res, "error", "User not authenticated", {});
+      resStatusData(res, "error", "User not authenticated", {});
+      return;
     }
 
     // Find active subscription for user
@@ -28,7 +29,7 @@ export const requireActiveSubscription = async (
 
     // If no subscription found
     if (!subscription) {
-      return resStatusData(
+      resStatusData(
         res,
         "error",
         "Active subscription required to access this feature",
@@ -37,6 +38,7 @@ export const requireActiveSubscription = async (
           action: "REDIRECT_TO_SUBSCRIPTION_PAGE",
         }
       );
+      return;
     }
 
     // Check if subscription has expired
@@ -51,7 +53,7 @@ export const requireActiveSubscription = async (
         currentSubscriptionId: null,
       });
 
-      return resStatusData(
+      resStatusData(
         res,
         "error",
         "Your subscription has expired. Please renew to continue.",
@@ -61,6 +63,7 @@ export const requireActiveSubscription = async (
           expiryDate: subscription.endDate,
         }
       );
+      return;
     }
 
     // Calculate days remaining
@@ -94,7 +97,7 @@ export const requireActiveSubscription = async (
     next();
   } catch (error: any) {
     console.error("Subscription middleware error:", error);
-    return resStatusData(
+    resStatusData(
       res,
       "error",
       "Failed to verify subscription status",
@@ -102,6 +105,7 @@ export const requireActiveSubscription = async (
         error: error.message,
       }
     );
+    return;
   }
 };
 

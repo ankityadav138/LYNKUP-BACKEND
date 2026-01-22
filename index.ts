@@ -9,6 +9,7 @@ import { updateOfferStatus } from "./src/Connections/cron";
 import { userRoutes } from "./src/Routes/authRoutes";
 import { adminRoutes } from "./src/Routes/adminRoutes";
 import subscriptionRoutes from "./src/Routes/SubscriptionRoutes";
+import { payoutRoutes } from "./src/Routes/PayoutRoutes";
 import { startSubscriptionCronJobs } from "./src/Cron/SubscriptionCron";
 import { errorHandler } from "./src/Middelware/errorHandler";
 import axios from "axios";
@@ -51,6 +52,7 @@ app.use(express.static(path.join(__dirname, "public")));
 userRoutes(app);
 adminRoutes(app);
 app.use("/api/subscription", subscriptionRoutes);
+payoutRoutes(app); // Phase 3: Manual payout management
 
 mongodbConnection();
 

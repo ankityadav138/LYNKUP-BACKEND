@@ -34,8 +34,6 @@ export const checkExpiredSubscriptions = async () => {
       await User.findByIdAndUpdate(subscription.userId, {
         hasActiveSubscription: false,
         currentSubscriptionId: null,
-        // Optionally keep old fields for backward compatibility
-        activesubscription: false,
       });
 
       console.log(

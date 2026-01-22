@@ -1,9 +1,9 @@
 import { Express } from "express";
 import { errCatch } from "../utils/errorCatch";
 import { addPlayerId, deleteUser, influencerAccount, InstagramMobileLogin, permanentlyDeleteUser, privacyPolicy, userLogin, userLogout } from "../Controllers/AuthLoginController"; 
-import { canceledBookings, contentUpload, createBooking, reUpload, showBookingForRestro, showBookings ,filterUserFeedback} from "../Controllers/BookingController";
+import { canceledBookings, contentUpload, createBooking, reUpload, showBookingForRestro, showBookings ,filterUserFeedback, rescheduleBooking} from "../Controllers/BookingController";
 import { adminMiddleware, businessMiddleware, userMiddleware } from "../Middelware/Auth";
-import { Feedback, showOfferAdmin, showOfferByID, showOfferUser } from "../Controllers/offerController";
+import { Feedback, showOfferAdmin, showOfferByID, showOfferUser, universalSearch, getPaidCollaborations } from "../Controllers/offerController";
 import upload from "../Middelware/Multer";
 import { getUserByToken } from "../Controllers/AdminLoginController";
 import { changeStatus, sendNotification, sendNotificationToAll, showNotifications } from "../Controllers/NotificationController";
@@ -54,6 +54,11 @@ export const userRoutes = (app: Express): void => {
   app.post("/user/permanentdeleteUser",userMiddleware,errCatch(permanentlyDeleteUser));
   app.get("/user/showNotifications",userMiddleware,errCatch(showNotifications));
   app.get("/user/read",userMiddleware,errCatch(changeStatus));
+  
+  // PHASE 5: Influencer App Enhancements
+  app.post("/user/rescheduleBooking", userMiddleware, errCatch(rescheduleBooking));
+  app.get("/offers/search", errCatch(universalSearch));
+  app.get("/offers/paid-collaborations", errCatch(getPaidCollaborations));
   
   // Subscription routes
   app.post("/subscription/verify", businessMiddleware, errCatch(verifySubscription));

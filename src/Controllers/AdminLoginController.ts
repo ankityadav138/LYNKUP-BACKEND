@@ -168,13 +168,22 @@ export const businessSignup = async (
     let existingUser = await UserModel.findOne({ email: normalizedEmail });
     if (existingUser) {
       if (!existingUser.isVerified) {
-        // await sendOtpOnMail(email, otp)
-        await storeOtp(normalizedEmail, otp);
-       await sendOtpOnMailMailgun(email, otp)
+        // Update OTP in database
+        existingUser.otp = otp;
+        await existingUser.save();
+        
+        // Send OTP email
+        try {
+          await sendOtpOnMailMailgun(email, otp);
+          console.log("✅ OTP resent successfully to:", email);
+        } catch (emailError) {
+          console.error("❌ Failed to resend OTP email:", emailError);
+        }
+        
         responsestatusmessage(
           res,
           "false",
-          "User exists but is not verified. OTP has been resent."
+          "User exists but is not verified. OTP has been resent to your email."
         );
       } else {
         responsestatusmessage(res, "false", "Email is already registered.");
@@ -203,17 +212,22 @@ export const businessSignup = async (
         isVerified: false,
       };
       
-      // await storeDetails(normalizedEmail, userDetails);
-      // await storeOtp(normalizedEmail, otp);
-      // await sendOtpOnMailMailgun(email, otp)
-
       const newUser = await UserModel.create(userDetails);
-      console.log("New user created:", newUser)
+      console.log("New user created:", newUser);
+
+      // Send OTP email (OTP is already stored in user document)
+      try {
+        await sendOtpOnMailMailgun(email, otp);
+        console.log("✅ OTP email sent successfully to:", email);
+      } catch (emailError) {
+        console.error("❌ Failed to send OTP email:", emailError);
+        // Continue even if email fails - user can request resend
+      }
 
       resStatus(
         res,
         "success",
-        "Business user created successfully. OTP has been sent."
+        "Business user created successfully. OTP has been sent to your email."
       );
     // }
     // else{
@@ -273,56 +287,46 @@ export const verifyOtp = async (
     resStatus(res, "false", "Email and OTP are required.");
     return;
   }
-  const normalizedEmail = email.toLowerCase(); 
-  // const storedOtp = await retrieveOtp(normalizedEmail); 
-  const storedOtp = otp // ⚠️ Temporary bypass for development
-  console.log(storedOtp)
-  if (otp.toString().trim() === storedOtp?.toString().trim())
-{
-    const existingUser = await UserModel.findOne({ email:normalizedEmail });
-    if (existingUser) {
-      if (existingUser.isVerified) {
-        resStatus(res, "false", "User already verified.");
-        return;
-      }
-      const updatedUser = await UserModel.findOneAndUpdate(
-        { email:normalizedEmail },
-        { isVerified: true, otp: null },
-        { new: true }
-      );
-      const Id = updatedUser?._id as Types.ObjectId;
-const token = genToken(Id);
-      resStatusDataToken(
-        res,
-        "success",
-        "OTP verified successfully.",
-        updatedUser,
-        token
-      );
-    } else {
-      const redisUser = await retrieveDetails(normalizedEmail);
-
-      if (!redisUser) {
-        resStatus(res, "false", "User details expired or not found.");
-        return;
-      }
-
-      const newUser = await UserModel.create({
-        ...redisUser,
-        isVerified: true,
-        otp: null,
-      });
-
-      const token = genToken(newUser.id);
-
-      resStatusDataToken(
-        res,
-        "success",
-        "User created and verified successfully.",
-        newUser,
-        token
-      );
+  const normalizedEmail = email.toLowerCase();
+  
+  // Get OTP from database (stored in user document)
+  const existingUser = await UserModel.findOne({ email: normalizedEmail });
+  
+  if (!existingUser) {
+    resStatus(res, "false", "User not found. Please register first.");
+    return;
+  }
+  
+  const storedOtp = existingUser.otp;
+  console.log("🔍 Stored OTP:", storedOtp, "| Entered OTP:", otp);
+  
+  if (!storedOtp) {
+    resStatus(res, "false", "OTP not found. Please request a new OTP.");
+    return;
+  }
+  
+  if (otp.toString().trim() === storedOtp.toString().trim()) {
+    // User already fetched above, no need to fetch again
+    if (existingUser.isVerified) {
+      resStatus(res, "false", "User already verified.");
+      return;
     }
+    
+    const updatedUser = await UserModel.findOneAndUpdate(
+      { email:normalizedEmail },
+      { isVerified: true, otp: null },
+      { new: true }
+    );
+    const Id = updatedUser?._id as Types.ObjectId;
+    const token = genToken(Id);
+    
+    resStatusDataToken(
+      res,
+      "success",
+      "OTP verified successfully. You can now login.",
+      updatedUser,
+      token
+    );
   } else {
     resStatus(res, "false", "Wrong OTP. Please try again.");
   }

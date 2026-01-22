@@ -19,6 +19,12 @@ export interface UserData extends Document {
   dietary_prefernces?: string[];
   allergy?:string;
   location?: any;
+  manual_location?: {
+    city?: string;
+    state?: string;
+    country?: string;
+    coordinates?: [number, number];
+  };
   email_notification?: {
     booking_update: boolean;
     new_offer: boolean;
@@ -38,18 +44,10 @@ export interface UserData extends Document {
   isVerified?:Boolean;
   otpExpires:Date;
   facebookId?: string;
-  // New subscription fields
+  // Subscription fields
   currentSubscriptionId?: any; // Reference to active Subscription document
   hasActiveSubscription?: boolean; // Denormalized for faster queries
   subscriptionExpiryDate?: Date; // Denormalized for faster queries
-  // Legacy subscription fields (deprecated, kept for backward compatibility)
-  activesubscription?: boolean;
-  subscriptionPlanId?: number;
-  subscriptionPlanDuration?: string;
-  subscriptionStartDate?: Date;
-  subscriptionEndDate?: Date;
-  razorpayPaymentId?: string;
-  subscriptionAmount?: number;
   instagramId?: string;
   city?:string;
   isDeleted?:Boolean;
@@ -174,6 +172,12 @@ const userSchema = new Schema<UserData>(
         type: String,
       },
     },
+    manual_location: {
+      city: { type: String },
+      state: { type: String },
+      country: { type: String, default: "India" },
+      coordinates: { type: [Number] },
+    },
     email_notification: {
       type: {
         booking_update: { type: Boolean, default: false },
@@ -231,7 +235,7 @@ const userSchema = new Schema<UserData>(
       type: String,
       default: null,
     },
-    // New subscription fields
+    // Subscription fields
     currentSubscriptionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Subscription",
@@ -246,35 +250,6 @@ const userSchema = new Schema<UserData>(
       type: Date,
       required: false,
       index: true,
-    },
-    // Legacy subscription fields (deprecated, kept for backward compatibility)
-    activesubscription: {
-      type: Boolean,
-      default: false,
-    },
-    subscriptionPlanId: {
-      type: Number,
-      required: false,
-    },
-    subscriptionPlanDuration: {
-      type: String,
-      required: false,
-    },
-    subscriptionStartDate: {
-      type: Date,
-      required: false,
-    },
-    subscriptionEndDate: {
-      type: Date,
-      required: false,
-    },
-    razorpayPaymentId: {
-      type: String,
-      required: false,
-    },
-    subscriptionAmount: {
-      type: Number,
-      required: false,
     },
     instagramId: {
       type: String,
