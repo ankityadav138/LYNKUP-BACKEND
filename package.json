@@ -6,7 +6,12 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "ts-node ./index.ts",
     "build": "tsc",
-    "dev": "nodemon --watch src --exec ts-node ./index.ts"
+    "dev": "nodemon --watch src --exec ts-node ./index.ts",
+    "seed:plans": "ts-node src/Seeds/seedSubscriptionPlans.ts",
+    "seed:businesses": "ts-node src/Scripts/seedBusinessUsers.ts",
+    "seed:creator": "ts-node src/Scripts/seedCreatorBooking.ts",
+    "setup:fresh": "npm run seed:plans && echo '\n✅ Database seeded! Create admin user via signup + MongoDB update'",
+    "verify:subscriptions": "ts-node src/Scripts/verifySubscriptionCleanup.ts"
   },
   "author": "",
   "license": "ISC",

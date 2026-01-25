@@ -16,6 +16,7 @@ interface BookingInterface {
   | "reupload"
   | "accepted"
   | "uploaded"
+  | "completed"
   | "past";
   status:
     | "pending"
@@ -23,6 +24,7 @@ interface BookingInterface {
     | "canceled"
     | "reupload"
     | "accepted"
+    | "completed"
     | "visited"
     | "past";
   reason: string;
@@ -49,7 +51,7 @@ const BookingSchema = new Schema<BookingInterface>(
   {
     offerId: {
       type: mongoose.Types.ObjectId,
-      ref: "offers",
+      ref: "offer",
       // required: true,
     },
     restoId: {
@@ -92,12 +94,12 @@ const BookingSchema = new Schema<BookingInterface>(
     },
     status: {
       type: String,
-      enum: ["pending", "rejected", "canceled", "reupload", "accepted"],
+      enum: ["pending", "rejected", "canceled", "reupload", "accepted", "completed"],
       required: false,
     },
     content_status: {
       type: String,
-      enum: ["notUploaded", "pending", "canceled", "reupload", "accepted","uploaded"],
+      enum: ["notUploaded", "pending", "canceled", "reupload", "accepted", "uploaded", "completed"],
       default : "notUploaded"
     },
     content_feedback:{

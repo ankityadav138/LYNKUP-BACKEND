@@ -46,7 +46,7 @@ export const editProfile = async (req: Request | any, res: Response, next: NextF
     if (app_notification) updateData.app_notification = app_notification;
     if (email_notification) updateData.email_notification = email_notification;
     if (req.file) {
-      updateData.profileImage = `image/${req.file.filename}`;
+      updateData.profileImage = (req.file as any).location || `image/${req.file.filename}`;
     }
 
     const updatedUser = await UserModel.findByIdAndUpdate(userId, updateData, { new: true });

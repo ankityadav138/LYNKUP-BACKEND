@@ -34,6 +34,7 @@ export const dashboard = async (req: Request | any, res: Response, next: NextFun
       dashboardData.totalBookings = totalBookings;
 
     } else if (userType === "business") {
+      const user = await UserModel.findById(userId);
       const totalOffers = await OfferModel.countDocuments({ business_id: userId, isdeleted: false });
       const totalBookings = await BookingModel.countDocuments({ restoId: userId });
 
@@ -41,6 +42,9 @@ export const dashboard = async (req: Request | any, res: Response, next: NextFun
 
       dashboardData.totalOffers = totalOffers;
       dashboardData.totalBookings = totalBookings;
+      // Add verification status
+      dashboardData.documentVerified = user?.documentVerified || false;
+      dashboardData.profileStatus = user?.profile_status || "under_review";
     } else {
       resStatus(res, "false", "Unauthorized access.");
       return;

@@ -2,6 +2,8 @@ import cron from "node-cron";
 import SubscriptionModel from "../Models/SubscriptionModel";
 import User from "../Models/UserModel";
 import { invoiceService } from "../Services/InvoiceService";
+import { sendNotification } from "../Controllers/NotificationController";
+import { subscriptionNotificationService } from "../Services/SubscriptionNotificationService";
 
 /**
  * Check for expired subscriptions and update their status
@@ -30,11 +32,22 @@ export const checkExpiredSubscriptions = async () => {
       subscription.status = "expired";
       await subscription.save();
 
-      // Update user
-      await User.findByIdAndUpdate(subscription.userId, {
+      // Get user details with playerId
+      const user = await User.findByIdAndUpdate(subscription.userId, {
         hasActiveSubscription: false,
         currentSubscriptionId: null,
       });
+
+      // Send push notification about expiration
+      if (user && user.playerId && user.playerId.length > 0) {
+        await sendNotification(
+          user.playerId,
+          "Subscription Expired",
+          "Your subscription has expired. Renew now to continue enjoying premium features!",
+          "", // No image
+          "subscription_expired"
+        );
+      }
 
       console.log(
         `[Subscription Cron] Expired subscription for user ${subscription.userId}`
@@ -113,6 +126,18 @@ export const sendExpiryReminders = async () => {
         };
 
         await invoiceService.sendExpiryReminder(reminderDetails);
+
+        // Send push notification about upcoming expiry
+        const user = await User.findById(userId);
+        if (user && user.playerId && user.playerId.length > 0) {
+          await sendNotification(
+            user.playerId,
+            "Subscription Expiring Soon",
+            `Your ${subscription.tier} subscription expires in ${daysRemaining} days. Renew now to avoid interruption!`,
+            "", // No image
+            "subscription_expiring_soon"
+          );
+        }
 
         console.log(
           `[Subscription Cron] Expiry reminder sent for user ${userId}`
@@ -210,6 +235,12 @@ export const startSubscriptionCronJobs = () => {
     cleanupPendingSubscriptions();
   });
   console.log("[Subscription Cron] ✓ Scheduled: Cleanup pending subscriptions (12:00 UTC)");
+
+  // Send subscription promotion to unsubscribed business users every Monday at 10:00 UTC
+  cron.schedule("0 10 * * 1", () => {
+    subscriptionNotificationService.notifyUnsubscribedBusinessUsers();
+  });
+  console.log("[Subscription Cron] ✓ Scheduled: Notify unsubscribed business users (Every Monday 10:00 UTC)");
 
   console.log("[Subscription Cron] All cron jobs initialized successfully");
 };

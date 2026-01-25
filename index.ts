@@ -17,6 +17,13 @@ import axios from "axios";
 dotenv.config();
 const app = express();
 
+// Import all models AFTER dotenv config to ensure they're registered with mongoose
+import "./src/Models/UserModel";
+import "./src/Models/Booking";
+import "./src/Models/offerModal";
+import "./src/Models/Wallet";
+import "./src/Models/WalletTransaction";
+
 // CORS configuration - allows specific origins and all others
 const allowedOrigins = [
   "https://unrefulgently-epiphragmal-abram.ngrok-free.dev", // Ngrok frontend

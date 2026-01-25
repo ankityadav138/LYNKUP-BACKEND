@@ -21,6 +21,22 @@ export const requireActiveSubscription = async (
       return;
     }
 
+    // Check if user is a business and if documents are verified
+    const user = await User.findById(userId);
+    if (user && user.userType === "business" && !user.documentVerified) {
+      resStatusData(
+        res,
+        "error",
+        "Your business documents are under review. You cannot subscribe until your documents are verified.",
+        {
+          code: "DOCUMENTS_NOT_VERIFIED",
+          action: "DOCUMENTS_PENDING_APPROVAL",
+          documentVerified: false,
+        }
+      );
+      return;
+    }
+
     // Find active subscription for user
     const subscription = await SubscriptionModel.findOne({
       userId,

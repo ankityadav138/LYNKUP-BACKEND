@@ -59,7 +59,7 @@ export const adminSignup = async (
       email:email.toLowerCase(),
       password: hashedPassword,
       userType,
-      profileImage: req.file ? `image/${req.file.filename}` : undefined,
+      profileImage: req.file ? ((req.file as any).location || `image/${req.file.filename}`) : undefined,
     });
     const token = genToken(user?.id);
     resStatusData(res, "success", "User registered successfully", user);
@@ -97,11 +97,14 @@ export const adminLogin = async (
         return;
       }
     
-      // Bypassing document verification check temporarily
-      // if (!businessUser.documentVerified) {
-      //   resStatus(res, "false", "Business documents not verified");
-      //   return;
-      // }
+      // Check document verification status
+      if (!businessUser.documentVerified) {
+        resStatusData(res, "pending_verification", "Your business documents are under review. You'll receive an email once approved.", {
+          documentVerified: false,
+          isVerified: businessUser.isVerified,
+        });
+        return;
+      }
 
       if (!businessUser.isVerified) {
         const otp = generateOtp();

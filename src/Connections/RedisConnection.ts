@@ -1,27 +1,39 @@
 
 // ⚠️ Redis temporarily disabled - Uncomment when Redis is installed
 import { createClient } from "redis";
-// const client = createClient();
-const client: any = null;  // Temporarily disabled
+
+const client = createClient({
+    username: process.env.REDIS_USERNAME || 'default',
+    password: process.env.REDIS_PASSWORD ,
+    socket: {
+        host: process.env.REDIS_URL,
+        port: 16287
+    }
+});
+// const client: any = null;  // Temporarily disabled
 let isConnected = false;
 const connectRedis = async () => {
     if (!isConnected) {
       try {
         await client.connect();
-        console.log("⚠️ Redis is disabled - OTP storage will not work");
+        console.log("✅ Redis connected successfully");
         isConnected = true; 
       } catch (error) {
         console.error("❌ Redis Connection Error:", error);
       }
     }
   };
-// client.on("error", (err) => {
-//   console.error("Redis Client Error:", err);
-// });
+
+client.on("error", (err) => {
+  console.error("Redis Client Error:", err);
+});
+
+// Connect to Redis on startup
+connectRedis();
 export const storeOtp = async (storeKey: string, otp: string): Promise<void> => {
   try {
-    if (!client) {
-      console.warn("⚠️ Redis disabled - OTP not stored:", storeKey);
+    if (!isConnected) {
+      console.warn("⚠️ Redis not connected - OTP not stored:", storeKey);
       return;
     }
     const key = `otp:${storeKey}`;
@@ -33,8 +45,8 @@ export const storeOtp = async (storeKey: string, otp: string): Promise<void> => 
 };
 export const retrieveOtp = async (storeKey: string): Promise<string | null> => {
   try {
-    if (!client) {
-      console.warn("⚠️ Redis disabled - Cannot retrieve OTP:", storeKey);
+    if (!isConnected) {
+      console.warn("⚠️ Redis not connected - Cannot retrieve OTP:", storeKey);
       return null;
     }
     const key = `otp:${storeKey}`;
@@ -46,8 +58,8 @@ export const retrieveOtp = async (storeKey: string): Promise<string | null> => {
 };
 export const storeDetails = async (storeKey: string, details: object): Promise<void> => {
   try {
-    if (!client) {
-      console.warn("⚠️ Redis disabled - Details not stored:", storeKey);
+    if (!isConnected) {
+      console.warn("⚠️ Redis not connected - Details not stored:", storeKey);
       return;
     }
     const key = `details:${storeKey}`;
@@ -60,8 +72,8 @@ export const storeDetails = async (storeKey: string, details: object): Promise<v
 };
 export const retrieveDetails = async (storeKey: string): Promise<object | null> => {
   try {
-    if (!client) {
-      console.warn("⚠️ Redis disabled - Cannot retrieve details:", storeKey);
+    if (!isConnected) {
+      console.warn("⚠️ Redis not connected - Cannot retrieve details:", storeKey);
       return null;
     }
     const key = `details:${storeKey}`;
@@ -73,6 +85,4 @@ export const retrieveDetails = async (storeKey: string): Promise<object | null> 
   }
 };
 
-// ⚠️ Redis disabled - No auto-connection
-// When you enable Redis, uncomment the lines above and remove the null assignment
 export { client };

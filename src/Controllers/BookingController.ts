@@ -671,7 +671,7 @@ export const contentUpload = async (
   res: Response
 ): Promise<void> => {
   const { bookingId } = req.body;
-  const profileImage = req.file ? req.file.filename : undefined;
+  const profileImage = req.file ? ((req.file as any).location || req.file.filename) : undefined;
   const booking = await BookingModel.findById(bookingId);
   if (!booking) {
     resStatus(res, "false", "Booking not found");
@@ -709,10 +709,21 @@ export const contentStatus = async (
       resStatus(res, "false", "Booking not found.");
       return;
     }
+    
+    // Prepare update object
+    const updateData: any = { content_status: content_status };
+    
+    // If content is marked as accepted/completed, also update booking status
+    // This makes the booking eligible for payout
+    if (content_status === "accepted" || content_status === "completed") {
+      updateData.status = "accepted"; // Set status to accepted for payout eligibility
+      updateData.content_status = "accepted"; // Normalize to 'accepted' for payout queries
+    }
+    
     // Update booking status
     const updatedBooking = await BookingModel.findByIdAndUpdate(
       bookingId,
-      { content_status: content_status },
+      updateData,
       { new: true }
     );
 
@@ -720,14 +731,40 @@ export const contentStatus = async (
       resStatus(res, "false", "Failed to update booking.");
       return;
     }
-else{
+    
+    // If content is approved, send notification to influencer
+    if (content_status === "accepted" || content_status === "completed") {
+      const user = await UserModel.findById(existingBooking.userId);
+      const offer = await OfferModel.findById(existingBooking.offerId);
+      
+      if (user && offer) {
+        const playerIDs: string[] = user.playerId || [];
+        const title = "Content Approved";
+        const notificationMessage = `Your content for ${offer.name} has been approved! Payout will be processed soon.`;
+        const imageUrl = "image/download.png";
+        
+        for (const playerID of playerIDs) {
+          await sendNotification(playerID, title, notificationMessage, imageUrl, "user");
+        }
+        
+        await createNotification(
+          new mongoose.Types.ObjectId(existingBooking.userId.toString()),
+          new mongoose.Types.ObjectId(existingBooking.restoId.toString()),
+          title,
+          notificationMessage,
+          imageUrl,
+          "user"
+        );
+      }
+    }
+    
     resStatusData(
       res,
       "success",
       "Booking status updated successfully and notification sent.",
       updatedBooking
     );
-  } }catch (error) {
+  } catch (error) {
     console.error("Error updating booking status:", error);
     resStatus(res, "false", "An error occurred while updating the booking status.");
   }
@@ -737,7 +774,7 @@ export const reUpload = async (
   res: Response
 ): Promise<void> => {
   const { bookingId } = req.body;
-  const profileImage = req.file ? req.file.filename : undefined;
+  const profileImage = req.file ? ((req.file as any).location || req.file.filename) : undefined;
   const booking = await BookingModel.findById(bookingId);
   if (!booking) {
     resStatus(res, "false", "Booking not found");

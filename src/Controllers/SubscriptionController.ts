@@ -6,6 +6,7 @@ import SubscriptionModel from "../Models/SubscriptionModel";
 import SubscriptionPlanModel from "../Models/SubscriptionPlanModel";
 import { resStatusData } from "../Responses/Response";
 import { invoiceService } from "../Services/InvoiceService";
+import { subscriptionNotificationService } from "../Services/SubscriptionNotificationService";
 
 // Initialize Razorpay instance
 const razorpay = new Razorpay({
@@ -291,6 +292,12 @@ export const verifySubscription = async (
     subscription.endDate = endDate;
 
     await subscription.save();
+
+    // Send push notification about activation
+    await subscriptionNotificationService.notifyUserBySubscriptionStatus(
+      userId.toString(),
+      "active"
+    );
 
     // Expire any old active subscriptions for this user
     await SubscriptionModel.updateMany(

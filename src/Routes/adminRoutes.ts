@@ -47,12 +47,11 @@ export const adminRoutes = (app: Express): void => {
   // ⚠️ AWS S3 disabled - Image upload temporarily removed
   app.post("/admin/contentUpload", businessMiddleware, /* upload.single('profileImage'), */ errCatch(contentUpload));
   //superadmin
-  // ⚠️ AWS S3 disabled - Image uploads temporarily removed
   // OFFER CREATION - Requires active subscription AND ₹20k wallet balance
-  app.post("/admin/createOffer", /* upload.array('profileImage'), */ adminMiddleware, requireActiveSubscription, requireWalletBalance, errCatch(createOffer));
-  app.post("/admin/editOffer", /* upload.array('profileImage'), */ adminMiddleware, requireActiveSubscription, errCatch(editOffer));
-  app.post("/admin/createOfferBusiness", /* upload.array('profileImage'), */ businessMiddleware, requireActiveSubscription, requireWalletBalance, errCatch(createOfferByBusiness));
-  app.post("/admin/editOfferBusiness", /* upload.array('profileImage'), */ businessMiddleware, requireActiveSubscription, errCatch(editOfferByBusiness));
+  app.post("/admin/createOffer", upload.array('profileImage'), adminMiddleware, requireActiveSubscription, requireWalletBalance, errCatch(createOffer));
+  app.post("/admin/editOffer", upload.array('profileImage'), adminMiddleware, requireActiveSubscription, errCatch(editOffer));
+  app.post("/admin/createOfferBusiness", upload.array('profileImage'), businessMiddleware, requireActiveSubscription, requireWalletBalance, errCatch(createOfferByBusiness));
+  app.post("/admin/editOfferBusiness", upload.array('profileImage'), businessMiddleware, requireActiveSubscription, errCatch(editOfferByBusiness));
   app.post("/admin/deleteOffer", businessMiddleware, requireActiveSubscription, errCatch(deleteOffer));
   app.post("/superadmin/documentVerify", adminMiddleware, errCatch(uploadDocumentverify));
   app.post("/superadmin/acceptBooking", businessMiddleware, errCatch(AcceptedBookingByAdmin));
@@ -100,4 +99,71 @@ export const adminRoutes = (app: Express): void => {
   app.post("/admin/payouts/record", adminMiddleware, errCatch(recordPayoutAsAdmin));
   app.get("/admin/payouts/dashboard", adminMiddleware, errCatch(getPayoutDashboard));
   app.post("/admin/payouts/generate-invoice/:booking_id", adminMiddleware, errCatch(generateGSTInvoice));
+
+  // PHASE: Subscription Notifications (Admin triggers)
+  app.post("/admin/notifications/unsubscribed-users", adminMiddleware, async (req, res) => {
+    try {
+      const { subscriptionNotificationService } = await import("../Services/SubscriptionNotificationService");
+      const count = await subscriptionNotificationService.notifyUnsubscribedBusinessUsers();
+      res.json({ 
+        status: "success", 
+        message: `Subscription promotion sent to ${count} unsubscribed business users` 
+      });
+    } catch (error: any) {
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  app.post("/admin/notifications/tier-announcement", adminMiddleware, async (req, res) => {
+    try {
+      const { tier, title, message } = req.body;
+      if (!tier || !title || !message) {
+        res.status(400).json({ status: "error", message: "tier, title, and message are required" });
+        return;
+      }
+      const { subscriptionNotificationService } = await import("../Services/SubscriptionNotificationService");
+      const count = await subscriptionNotificationService.notifyUsersBySubscriptionTier(tier, title, message);
+      res.json({ 
+        status: "success", 
+        message: `Announcement sent to ${count} ${tier} tier users` 
+      });
+    } catch (error: any) {
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  app.post("/admin/notifications/all-subscribers", adminMiddleware, async (req, res) => {
+    try {
+      const { title, message } = req.body;
+      if (!title || !message) {
+        res.status(400).json({ status: "error", message: "title and message are required" });
+        return;
+      }
+      const { subscriptionNotificationService } = await import("../Services/SubscriptionNotificationService");
+      const count = await subscriptionNotificationService.notifyAllActiveSubscribers(title, message);
+      res.json({ 
+        status: "success", 
+        message: `Announcement sent to ${count} active subscribers` 
+      });
+    } catch (error: any) {
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  app.post("/admin/notifications/specific-user/:userId", adminMiddleware, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { title, message } = req.body;
+      const { subscriptionNotificationService } = await import("../Services/SubscriptionNotificationService");
+      const success = await subscriptionNotificationService.notifySpecificUnsubscribedUser(userId, title, message);
+      
+      if (success) {
+        res.json({ status: "success", message: "Personal promotion sent successfully" });
+      } else {
+        res.status(400).json({ status: "error", message: "Failed to send notification" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  });
 };

@@ -148,6 +148,11 @@ export const createOfferByBusiness = async (
   req: Request | any,
   res: Response
 ): Promise<void> => {
+  console.log("📥 CREATE OFFER REQUEST RECEIVED");
+  console.log("👤 User ID:", req.user?._id);
+  console.log("📦 Request Body:", JSON.stringify(req.body, null, 2));
+  console.log("📁 Files:", req.files?.length || 0, "files");
+  
   const business_id = req.user._id;
   const {
     name,
@@ -173,18 +178,34 @@ export const createOfferByBusiness = async (
     collaboration_type = "milestone",
     fixed_amount,
   } = req.body;
+  
+  console.log("✅ Extracted Data:", {
+    name,
+    offer_type,
+    collaboration_type,
+    fixed_amount,
+    address_count: address ? (typeof address === 'string' ? 'string' : 'object') : 'none'
+  });
 
   // Get wallet info from middleware (balance already checked)
   const walletInfo = req.walletInfo;
   let wallet = walletInfo?.wallet;
   
+  console.log("💰 Wallet Info from Middleware:", {
+    hasWalletInfo: !!walletInfo,
+    hasWallet: !!wallet,
+    walletId: wallet?._id
+  });
+  
   // Fallback: Get wallet if middleware didn't provide it
   if (!wallet) {
+    console.log("⚠️ Wallet not in middleware, fetching...");
     wallet = await Wallet.findOne({ user_id: business_id });
   }
   
   // Create wallet if doesn't exist
   if (!wallet) {
+    console.log("🆕 Creating new wallet for user");
     wallet = await Wallet.create({
       user_id: business_id,
       total_balance: 0,
@@ -192,6 +213,12 @@ export const createOfferByBusiness = async (
       available_balance: 0,
     });
   }
+  
+  console.log("💰 Wallet Balance:", {
+    total: wallet.total_balance,
+    locked: wallet.locked_balance,
+    available: wallet.available_balance
+  });
 
   const files = req.files;
   const mediaFiles = files ? files.map((file: any) => file.location) : [];
@@ -200,7 +227,10 @@ export const createOfferByBusiness = async (
   //   typeof address === "string" ? JSON.parse(address) : address;
   const parsedLocations = typeof address === "string" ? JSON.parse(address) : address;
 
+console.log("📍 Parsed Locations:", parsedLocations);
+
 if (!Array.isArray(parsedLocations) || parsedLocations.length === 0) {
+  console.log("❌ Address validation failed - not an array or empty");
   resStatus(res, "false", "At least one address/location is required.");
   return;
 }
@@ -210,17 +240,25 @@ const locations = parsedLocations.map((loc: any) => ({
   coordinates: loc.coordinates,
   address: loc.address || "",
 }));
+
+console.log("📍 Formatted Locations:", locations);
+
   if (!name || !offer_type ) {
+    console.log("❌ Missing required fields:", { name: !!name, offer_type: !!offer_type });
     resStatus(res, "false", "Name, offer_type, and business_id are required.");
     return;
   }
   if (!["visite", "delivery"].includes(offer_type)) {
+    console.log("❌ Invalid offer_type:", offer_type);
     resStatus(res, "false", "offer_type must be 'visite' or 'delivery'.");
     return;
   }
   
+  console.log("✅ Basic validation passed");
+  
   // Validate collaboration type
   if (collaboration_type && !["milestone", "paid"].includes(collaboration_type)) {
+    console.log("❌ Invalid collaboration_type:", collaboration_type);
     resStatus(res, "false", "collaboration_type must be 'milestone' or 'paid'.");
     return;
   }
@@ -228,10 +266,13 @@ const locations = parsedLocations.map((loc: any) => ({
   // Validate paid collaboration
   if (collaboration_type === "paid") {
     if (!fixed_amount || parseFloat(fixed_amount) <= 0) {
+      console.log("❌ Invalid fixed_amount for paid collaboration:", fixed_amount);
       resStatus(res, "false", "Fixed amount is required and must be greater than 0 for paid collaborations.");
       return;
     }
   }
+  
+  console.log("✅ Collaboration validation passed");
   
   // Calculate total lock amount
   let totalLockAmount = MINIMUM_OFFER_AMOUNT; // ₹20,000 security deposit
@@ -239,8 +280,15 @@ const locations = parsedLocations.map((loc: any) => ({
     totalLockAmount += parseFloat(fixed_amount);
   }
   
+  console.log("💰 Total Lock Amount:", totalLockAmount);
+  
   // Check wallet balance for total amount needed
   if (wallet.available_balance < totalLockAmount) {
+    console.log("❌ Insufficient wallet balance:", {
+      required: totalLockAmount,
+      available: wallet.available_balance,
+      shortfall: totalLockAmount - wallet.available_balance
+    });
     resStatusData(res, "error", 
       `Insufficient wallet balance. Required: ₹${totalLockAmount.toLocaleString("en-IN")}`,
       {
@@ -361,6 +409,13 @@ const locations = parsedLocations.map((loc: any) => ({
         }).catch(err => console.error("Failed to send invoice:", err));
       }
 
+      console.log("✅ Offer created successfully (days mode):", offer._id);
+      console.log("💰 Updated Wallet Balance:", {
+        total: wallet.total_balance,
+        locked: wallet.locked_balance,
+        available: wallet.available_balance
+      });
+
       resStatusData(res, "success", "Offer created successfully by business", {
         offer,
         wallet_balance: {
@@ -370,6 +425,8 @@ const locations = parsedLocations.map((loc: any) => ({
         },
       });
     } catch (error: any) {
+      console.error("❌ Error creating offer (days mode):", error);
+      console.error("❌ Error Stack:", error.stack);
       resStatusData(res, "error", error.message, null);
       return;
     }

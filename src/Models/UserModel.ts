@@ -318,5 +318,5 @@ const userSchema = new Schema<UserData>(
   }
 );
 userSchema.index({ "location.coordinates": "2dsphere" }, { background: true });
-const UserModel = model<UserData>("User", userSchema);
+const UserModel = model<UserData>("users", userSchema);
 export default UserModel;
