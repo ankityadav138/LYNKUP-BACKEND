@@ -6,16 +6,27 @@ interface OfferInterface {
   adminId: ObjectId;
   business_id: ObjectId;
   media: string[];
-  creator_requirement:string;
+  creator_requirement: string;
   details: string;
   offering: string;
-  address?: any;
+  address?: Array<{
+    type: string;
+    coordinates: number[];
+    address: string;
+    location?: {
+      state?: string;
+      city?: string;
+      pincode?: string;
+      address1?: string;
+      address2?: string;
+    };
+  }>;
   valid: { start: Date; end: Date };
   offDays: string[];
   content_guidelines: string;
   instagram_reel: string;
   tags: string;
-  min_follower:number;
+  min_follower: number;
   hashtags: string;
   restro_type: "luxury" | "ordinary";
   noOfBookings: number;
@@ -28,7 +39,7 @@ interface OfferInterface {
   Booked: string[];
   ending_type: "days" | "booking";
   status: "live" | "paused" | "ended";
-  lock:boolean;
+  lock: boolean;
   locked_amount?: number;
   is_eligible_for_withdrawal?: boolean;
   withdrawal_eligibility_date?: Date;
@@ -94,27 +105,18 @@ const OfferSchema = new Schema<OfferInterface>(
       type: String,
       default: "",
     },
-    // address:  {
-    //   type: {
-    //     type: String,
-    //     enum: ["Point"],
-    //     default: "Point",
-    //   },
-    //   coordinates: {
-    //     type: [Number],
-    //     default: [0, 0],
-    //   },
-    //   address: {
-    //     type: String,
-    //   },
-    // },
     address: [
       {
         type: { type: String, enum: ["Point"], default: "Point" },
         coordinates: { type: [Number], required: true },
         address: { type: String },
+        location: {
+          state: { type: String },
+          city: { type: String },
+          pincode: { type: String },
+        }
       }
-    ],    
+    ],
     valid: {
       start: {
         type: Date,
@@ -236,6 +238,7 @@ const OfferSchema = new Schema<OfferInterface>(
         reward: { type: Number, required: true },
       },
     ],
+    
   },
   {
     timestamps: true,

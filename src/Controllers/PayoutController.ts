@@ -7,10 +7,6 @@ import WalletTransaction from "../Models/WalletTransaction";
 import { resStatusData, resStatus } from "../Responses/Response";
 import { invoiceService } from "../Services/InvoiceService";
 
-/**
- * PHASE 3: Manual Payout System
- * Businesses manually record payouts to influencers after collaboration completion
- */
 
 /**
  * Get all completed bookings that need payout

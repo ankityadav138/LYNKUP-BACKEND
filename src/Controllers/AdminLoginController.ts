@@ -544,12 +544,16 @@ export const getUserByToken = async (
   let longLivedToken = tokenInDB;
   let finalToken = tokenInDB;
 
+  console.log("finalToken", finalToken);
+
   try {
     try {
       const exchange: any = await axios.get("https://graph.instagram.com/access_token", {
         params: {
+          
           grant_type: "ig_exchange_token",
           client_secret: process.env.FACEBOOK_APP_SECRET || "76a8b193787892f6bf2459abeb935d7b",
+          // client_secret:"0f31af4a8102b8bbae2e0e4d8f784d1b",
           access_token: tokenInDB,
         },
       });
@@ -618,12 +622,10 @@ export const getUserByToken = async (
       engagementRate,
     };
     const followersCount = userProfile.followers_count || 0;
-    // const followersWhoEngaged = reach > 0 ? Math.round((accountsEngaged * followersCount) / reach) : 0;
-    // const nonFollowersWhoEngaged = Math.max(accountsEngaged - followersWhoEngaged, 0);
-    const followersWhoEngaged =  Math.round(((accountsEngaged ||0) * followersCount) / (reach ||0));
-     const nonFollowersWhoEngaged = Math.max((accountsEngaged ||0)- followersWhoEngaged, 0);
-
-     let nonFollowers = Math.round(((reach || 0) - (followersCount || 0)/100), );
+    // Safely calculate to avoid NaN from division by zero
+    const followersWhoEngaged = reach > 0 ? Math.round((accountsEngaged * followersCount) / reach) : 0;
+    const nonFollowersWhoEngaged = Math.max(accountsEngaged - followersWhoEngaged, 0);
+    const nonFollowers = reach > 0 ? Math.max(Math.round(reach - followersCount), 0) : 0;
     console.log(userProfile, nonFollowers,reach,insightsUpdate);
     await UserModel.findByIdAndUpdate(userId, {
       insights: insightsUpdate,
