@@ -208,6 +208,16 @@ export const showBookings = async (
         },
       },
       { $unwind: { path: "$offerDetails", preserveNullAndEmptyArrays: true } },
+      // Lookup foodTimings using offerDetails.timeId
+      {
+        $lookup: {
+          from: "foodtimings", // collection name in MongoDB
+          localField: "offerDetails.timeId",
+          foreignField: "_id",
+          as: "foodTimingsDetails"
+        }
+      },
+      { $unwind: { path: "$foodTimingsDetails", preserveNullAndEmptyArrays: true } },
       {
         $project: {
           _id: 1,
@@ -225,7 +235,12 @@ export const showBookings = async (
           review: 1,
           content_media: 1,
           userDetails: 1,
-          offerDetails: 1,
+          offerDetails: {
+            $mergeObjects: [
+              "$offerDetails",
+              { foodTimings: "$foodTimingsDetails" }
+            ]
+          },
           createdAt: 1,
         },
       },

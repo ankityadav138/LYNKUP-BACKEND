@@ -173,6 +173,11 @@ export const verifyRecharge = async (req: Request, res: Response) => {
       .update(body.toString())
       .digest("hex");
 
+      //TESTING LOGS
+      console.log("Expected Signature:", expectedSignature);
+      console.log("Received Signature:", razorpay_signature);
+      //END TESTING LOGS
+
     if (expectedSignature !== razorpay_signature) {
       return resStatusData(
         res,
