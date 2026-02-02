@@ -14,29 +14,48 @@ export const getEligibleOffers = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user._id;
 
-    const eligibleOffers = await OfferModel.find({
+    // Get all offers with locked amounts (eligible or pending)
+    const allOffers = await OfferModel.find({
       business_id: userId,
-      is_eligible_for_withdrawal: true,
       withdrawal_requested: false,
       locked_amount: { $gt: 0 },
       isdeleted: false,
     })
       .select(
-        "name locked_amount withdrawal_eligibility_date createdAt noOfBookings status"
+        "name locked_amount withdrawal_eligibility_date createdAt noOfBookings status is_eligible_for_withdrawal"
       )
       .sort({ withdrawal_eligibility_date: -1 });
+
+    // Calculate eligibility based on date (30 days)
+    const now = new Date();
+    const offersWithStatus = allOffers.map((offer) => {
+      const eligibilityDate = offer.withdrawal_eligibility_date || new Date(offer.createdAt!);
+      const isEligibleByDate = eligibilityDate <= now;
+      
+      return {
+        ...offer.toObject(),
+        is_eligible: isEligibleByDate,
+        days_until_eligible: isEligibleByDate 
+          ? 0 
+          : Math.ceil((eligibilityDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+      };
+    });
+
+    const eligibleOffers = offersWithStatus.filter(o => o.is_eligible);
 
     return resStatusData(
       res,
       "success",
-      "Eligible offers fetched successfully",
+      "Offers fetched successfully",
       {
-        offers: eligibleOffers,
+        offers: offersWithStatus,
+        eligible_offers: eligibleOffers,
         total_eligible: eligibleOffers.length,
         total_amount: eligibleOffers.reduce(
           (sum, offer) => sum + (offer.locked_amount || 0),
           0
         ),
+        pending_offers: offersWithStatus.filter(o => !o.is_eligible).length,
       }
     );
   } catch (error: any) {
@@ -68,20 +87,37 @@ export const createWithdrawalRequest = async (req: Request, res: Response) => {
       );
     }
 
-    // Check if offer exists and is eligible
+    // Check if offer exists and has locked amount
     const offer = await OfferModel.findOne({
       _id: offer_id,
       business_id: userId,
-      is_eligible_for_withdrawal: true,
       withdrawal_requested: false,
+      locked_amount: { $gt: 0 },
     });
 
     if (!offer) {
       return resStatusData(
         res,
         "error",
-        "Offer not found or not eligible for withdrawal",
+        "Offer not found or has no locked amount",
         null
+      );
+    }
+
+    // Check if offer is eligible by date (30 days)
+    const eligibilityDate = offer.withdrawal_eligibility_date || new Date(offer.createdAt!);
+    const now = new Date();
+    
+    if (eligibilityDate > now) {
+      const daysRemaining = Math.ceil((eligibilityDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      return resStatusData(
+        res,
+        "error",
+        `Offer not yet eligible for withdrawal. Please wait ${daysRemaining} more days.`,
+        {
+          eligibility_date: eligibilityDate,
+          days_remaining: daysRemaining,
+        }
       );
     }
 

@@ -2192,11 +2192,9 @@ export const createOfferByBusiness = async (
     walletId: wallet?._id
   });
   
-  // Fallback: Get wallet if middleware didn't provide it
-  if (!wallet) {
-    console.log("⚠️ Wallet not in middleware, fetching...");
-    wallet = await Wallet.findOne({ user_id: business_id });
-  }
+  // ALWAYS refetch wallet to ensure we have the latest data
+  console.log("🔄 Refetching wallet from database for latest data...");
+  wallet = await Wallet.findOne({ user_id: business_id });
   
   // Create wallet if doesn't exist
   if (!wallet) {
@@ -2318,7 +2316,29 @@ console.log("📍 Formatted Locations:", locations);
 
     // Lock wallet balance BEFORE creating offer
     try {
-      await wallet.lockAmount(totalLockAmount);
+      console.log("🔒 Attempting to lock amount:", totalLockAmount);
+      console.log("💰 Wallet balance before lock:", {
+        total: wallet.total_balance,
+        available: wallet.available_balance,
+        locked: wallet.locked_balance
+      });
+      
+      const updatedWallet = await wallet.lockAmount(totalLockAmount);
+      
+      console.log("✅ Amount locked successfully");
+      console.log("💰 Wallet balance after lock:", {
+        total: updatedWallet.total_balance,
+        available: updatedWallet.available_balance,
+        locked: updatedWallet.locked_balance
+      });
+      
+      // Double-check: Refetch wallet from DB to confirm save
+      const walletCheck = await Wallet.findById(wallet._id);
+      console.log("🔍 Wallet reloaded from DB:", {
+        total: walletCheck?.total_balance,
+        available: walletCheck?.available_balance,
+        locked: walletCheck?.locked_balance
+      });
 
       // Calculate withdrawal eligibility date (30 days from now)
       const withdrawalDate = new Date();
@@ -2397,7 +2417,7 @@ console.log("📍 Formatted Locations:", locations);
           description: collaboration_type === "paid"
             ? `Security deposit ₹${MINIMUM_OFFER_AMOUNT.toLocaleString()} + Creator payment ₹${fixed_amount.toLocaleString()} (GST 18% = ₹${gstAmount.toLocaleString()})`
             : `Security deposit locked for creating offer: ${name}. Will be released after 30 days.`,
-          offerId: offer._id.toString(),
+          offerId: (offer._id as any).toString(),
           offerName: name,
           remainingBalance: wallet.available_balance,
           company: "LYNKUP",
@@ -2428,7 +2448,29 @@ console.log("📍 Formatted Locations:", locations);
   }else{
     // Lock wallet balance BEFORE creating offer (ending_type = "booking")
     try {
-      await wallet.lockAmount(totalLockAmount);
+      console.log("🔒 Attempting to lock amount (booking mode):", totalLockAmount);
+      console.log("💰 Wallet balance before lock:", {
+        total: wallet.total_balance,
+        available: wallet.available_balance,
+        locked: wallet.locked_balance
+      });
+      
+      const updatedWallet = await wallet.lockAmount(totalLockAmount);
+      
+      console.log("✅ Amount locked successfully (booking mode)");
+      console.log("💰 Wallet balance after lock:", {
+        total: updatedWallet.total_balance,
+        available: updatedWallet.available_balance,
+        locked: updatedWallet.locked_balance
+      });
+      
+      // Double-check: Refetch wallet from DB to confirm save
+      const walletCheck = await Wallet.findById(wallet._id);
+      console.log("🔍 Wallet reloaded from DB:", {
+        total: walletCheck?.total_balance,
+        available: walletCheck?.available_balance,
+        locked: walletCheck?.locked_balance
+      });
 
       // Calculate withdrawal eligibility date (30 days from now)
       const withdrawalDate = new Date();
@@ -2487,6 +2529,13 @@ console.log("📍 Formatted Locations:", locations);
         balance_after: wallet.available_balance,
       });
 
+      console.log("✅ Offer created successfully (booking mode):", offer._id);
+      console.log("💰 Final Wallet Balance:", {
+        total: wallet.total_balance,
+        locked: wallet.locked_balance,
+        available: wallet.available_balance
+      });
+
       resStatusData(res, "success", "Offer created successfully by business", {
         offer,
         wallet_balance: {
@@ -2496,6 +2545,8 @@ console.log("📍 Formatted Locations:", locations);
         },
       });
     } catch (error: any) {
+      console.error("❌ Error creating offer (booking mode):", error);
+      console.error("❌ Error Stack:", error.stack);
       resStatusData(res, "error", error.message, null);
       return;
     }
@@ -2514,7 +2565,7 @@ export const showOfferAdmin = async (
     const matchCondition: any = {
       "userDetails.userType" : "business",
       isdeleted: false,
-      ...(userType === "business" && { business_id: userId }),
+      ...(userType === "business" && { business_id: new mongoose.Types.ObjectId(userId) }),
     };
 
     if (search) {
@@ -2593,6 +2644,9 @@ export const showOfferAdmin = async (
           valid: 1,
           restro_type: 1,
           min_follower: 1 ,
+          collaboration_type: 1,
+          fixed_amount: 1,
+          locked_amount: 1,
           foodTimings: 1,
           userDetails: {
             _id: 1,

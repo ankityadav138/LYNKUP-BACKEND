@@ -130,7 +130,7 @@ const s3Storage = multerS3({
     const newFilename = `${folder}${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`;
     cb(null, newFilename);
   },
-  // acl: "public-read",
+  acl: "public-read",
   contentType: multerS3.AUTO_CONTENT_TYPE,
 });
 

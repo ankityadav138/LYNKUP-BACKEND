@@ -77,6 +77,11 @@ export interface UserData extends Document {
   upi_Id?:string;
   lastTokenRefresh:Date;
   passwordChangedAt:Date;
+  manualPay?: {
+    amount: number;
+    method: string;
+    date: Date;
+  };
 }
 
 // Schema for the user
@@ -311,6 +316,15 @@ const userSchema = new Schema<UserData>(
     review:{
       type:Boolean,
       default:false
+    },
+    manualPay: {
+      type: {
+        amount: { type: Number },
+        method: { type: String },
+        date: { type: Date },
+      },
+      required: false,
+      default: null,
     },
   },
   {

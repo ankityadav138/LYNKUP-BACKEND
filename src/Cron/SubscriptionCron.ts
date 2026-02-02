@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import SubscriptionModel from "../Models/SubscriptionModel";
 import User from "../Models/UserModel";
+import OfferModel from "../Models/offerModal";
 import { invoiceService } from "../Services/InvoiceService";
 import { sendNotification } from "../Controllers/NotificationController";
 import { subscriptionNotificationService } from "../Services/SubscriptionNotificationService";
@@ -212,6 +213,69 @@ export const cleanupPendingSubscriptions = async () => {
 };
 
 /**
+ * Update withdrawal eligibility for offers that are 30+ days old
+ * Runs daily at 01:00 UTC
+ */
+export const updateWithdrawalEligibility = async () => {
+  try {
+    console.log("[Withdrawal Cron] Checking for offers eligible for withdrawal at", new Date());
+
+    const now = new Date();
+
+    // Find offers where eligibility date has passed but flag is not set
+    const eligibleOffers = await OfferModel.find({
+      is_eligible_for_withdrawal: false,
+      withdrawal_eligibility_date: { $lte: now },
+      locked_amount: { $gt: 0 },
+      isdeleted: false,
+    });
+
+    if (eligibleOffers.length === 0) {
+      console.log("[Withdrawal Cron] No offers became eligible for withdrawal");
+      return { count: 0 };
+    }
+
+    // Update all eligible offers
+    const result = await OfferModel.updateMany(
+      {
+        is_eligible_for_withdrawal: false,
+        withdrawal_eligibility_date: { $lte: now },
+        locked_amount: { $gt: 0 },
+        isdeleted: false,
+      },
+      {
+        $set: { is_eligible_for_withdrawal: true },
+      }
+    );
+
+    console.log(`[Withdrawal Cron] ✓ Marked ${result.modifiedCount} offers as eligible for withdrawal`);
+
+    // Optional: Send notification to business users
+    for (const offer of eligibleOffers) {
+      try {
+        const user = await User.findById(offer.business_id);
+        if (user && user.playerId && user.playerId.length > 0) {
+          await sendNotification(
+            user.playerId,
+            "Withdrawal Available",
+            `Your offer "${offer.name}" is now eligible for withdrawal. Locked amount: ₹${offer.locked_amount?.toLocaleString()}`,
+            "",
+            "withdrawal_eligible"
+          );
+        }
+      } catch (notifError) {
+        console.error("[Withdrawal Cron] Failed to send notification:", notifError);
+      }
+    }
+
+    return { count: result.modifiedCount, offers: eligibleOffers };
+  } catch (error) {
+    console.error("[Withdrawal Cron] Error updating withdrawal eligibility:", error);
+    throw error;
+  }
+};
+
+/**
  * Initialize all subscription cron jobs
  * Call this in your main server file (index.ts) after database connection
  */
@@ -242,6 +306,12 @@ export const startSubscriptionCronJobs = () => {
   });
   console.log("[Subscription Cron] ✓ Scheduled: Notify unsubscribed business users (Every Monday 10:00 UTC)");
 
+  // Check for offers eligible for withdrawal (runs daily at 01:00 UTC)
+  cron.schedule("0 1 * * *", () => {
+    updateWithdrawalEligibility();
+  });
+  console.log("[Withdrawal Cron] ✓ Scheduled: Update withdrawal eligibility (Daily 01:00 UTC)");
+
   console.log("[Subscription Cron] All cron jobs initialized successfully");
 };
 
@@ -258,4 +328,8 @@ export const triggerReminderCheck = async () => {
 
 export const triggerPendingCleanup = async () => {
   return await cleanupPendingSubscriptions();
+};
+
+export const triggerWithdrawalEligibilityUpdate = async () => {
+  return await updateWithdrawalEligibility();
 };

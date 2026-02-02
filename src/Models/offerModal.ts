@@ -1,6 +1,6 @@
-import mongoose, { ObjectId, Schema, model } from "mongoose";
+import mongoose, { ObjectId, Schema, model, Document } from "mongoose";
 
-interface OfferInterface {
+interface OfferInterface extends Document {
   name: string;
   timeId: ObjectId;
   adminId: ObjectId;
@@ -45,6 +45,8 @@ interface OfferInterface {
   withdrawal_eligibility_date?: Date;
   withdrawal_requested?: boolean;
   withdrawal_request_id?: ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
   
   // New Fields for Paid Collaborations
   collaboration_type?: "milestone" | "paid";

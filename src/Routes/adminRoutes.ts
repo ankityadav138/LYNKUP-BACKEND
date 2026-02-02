@@ -21,6 +21,8 @@ import {
   getPayoutDashboard,
   generateGSTInvoice,
 } from "../Controllers/AdminPayoutController";
+import { recordEarning, getUserEarnings } from '../Controllers/EarningController';
+import { triggerWithdrawalEligibilityUpdate } from "../Cron/SubscriptionCron";
 export const adminRoutes = (app: Express): void => {
   // ⚠️ AWS S3 disabled - Image upload temporarily removed
   app.post("/admin/signup", /* upload.single('profileImage'), */ errCatch(adminSignup));
@@ -47,8 +49,8 @@ export const adminRoutes = (app: Express): void => {
   // ⚠️ AWS S3 disabled - Image upload temporarily removed
   app.post("/admin/contentUpload", businessMiddleware, /* upload.single('profileImage'), */ errCatch(contentUpload));
   //superadmin
-  // OFFER CREATION - Requires active subscription AND ₹20k wallet balance
-  app.post("/admin/createOffer", upload.array('profileImage'), adminMiddleware, requireActiveSubscription, requireWalletBalance, errCatch(createOffer));
+  // OFFER CREATION - Admin: subscription only | Business: subscription + ₹20k wallet balance
+  app.post("/admin/createOffer", upload.array('profileImage'), adminMiddleware, requireActiveSubscription, errCatch(createOffer));
   app.post("/admin/editOffer", upload.array('profileImage'), adminMiddleware, requireActiveSubscription, errCatch(editOffer));
   app.post("/admin/createOfferBusiness", upload.array('profileImage'), businessMiddleware, requireActiveSubscription, requireWalletBalance, errCatch(createOfferByBusiness));
   app.post("/admin/editOfferBusiness", upload.array('profileImage'), businessMiddleware, requireActiveSubscription, errCatch(editOfferByBusiness));
@@ -80,11 +82,21 @@ export const adminRoutes = (app: Express): void => {
   app.post("/superadmin/contentFeedback", errCatch(contentFeedback));
   app.get("/superadmin/getuserFeedback",businessMiddleware,errCatch(adminFeedback));
   app.post("/superadmin/giveuserFeedback",businessMiddleware,errCatch(userFeedbackByAdmin));
+ 
+
+
+   // Earnings
+  app.post("/superadmin/payUserEarning", businessMiddleware, recordEarning);
+  app.get("/superadmin/getUserEarnings", businessMiddleware, getUserEarnings);
+  
+ 
   // notification
     app.get("/admin/showNotifications",businessMiddleware,errCatch(showNotifications));
     app.post("/admin/creator_post",businessMiddleware,errCatch(creator_post_seen));
     app.post("/admin/read",businessMiddleware,errCatch(markAllNotificationsAsRead));
     app.post("/admin/addPlayerId",businessMiddleware,errCatch(addPlayerId));
+
+
 
   // PHASE 6: Admin Analytics & Monitoring
   app.get("/admin/analytics/platform", adminMiddleware, errCatch(getPlatformOverview));
@@ -166,4 +178,16 @@ export const adminRoutes = (app: Express): void => {
       res.status(500).json({ status: "error", message: error.message });
     }
   });
+
+  // Manual trigger for withdrawal eligibility update (for testing)
+  app.post("/admin/trigger-withdrawal-eligibility", adminMiddleware, async (req, res) => {
+    try {
+      const result = await triggerWithdrawalEligibilityUpdate();
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+ 
 };

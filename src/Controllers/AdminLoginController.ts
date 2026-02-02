@@ -849,6 +849,11 @@ export const getAlluser = async (
       UserModel.countDocuments(query),
     ]);
 
+    console.log('📋 Fetched users count:', users.length);
+    if (users.length > 0) {
+      console.log('💰 Sample user manualPay:', users[0]?.manualPay);
+    }
+
     if (users.length > 0) {
       res.status(200).json({
         status: "success",
@@ -865,6 +870,7 @@ export const getAlluser = async (
       return next(new Error("No users found"));
     }
   } catch (err) {
+    console.error('❌ Error fetching users:', err);
     return next(err);
   }
 };
