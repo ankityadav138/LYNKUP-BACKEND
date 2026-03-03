@@ -3,12 +3,12 @@ interface BookingInterface {
   offerId: ObjectId;
   restoId: ObjectId;
   userId: ObjectId;
-  offer_address:string;
+  offer_address: string;
   selected_date: Date;
   selected_time: string;
-   booking_allergy: string;
-    booking_dish_preference: string;
-     booking_dietry_preference: string;
+  booking_allergy: string;
+  booking_dish_preference: string;
+  booking_dietry_preference: string;
   address: string;
   content_status: | "pending"
   | "notUploaded"
@@ -19,20 +19,20 @@ interface BookingInterface {
   | "completed"
   | "past";
   status:
-    | "pending"
-    | "rejected"
-    | "canceled"
-    | "reupload"
-    | "accepted"
-    | "completed"
-    | "visited"
-    | "past";
+  | "pending"
+  | "rejected"
+  | "canceled"
+  | "reupload"
+  | "accepted"
+  | "completed"
+  | "visited"
+  | "past";
   reason: string;
-  content_feedback:string;
+  content_feedback: string;
   review: Boolean;
   content_media: string;
-  creator_post_seen:Boolean;
-  
+  creator_post_seen: Boolean;
+
   // Payout Tracking Fields
   payout_amount?: number;
   payout_date?: Date;
@@ -40,12 +40,13 @@ interface BookingInterface {
   payout_mode?: "UPI" | "Bank Transfer" | "Cash";
   payout_remarks?: string;
   milestone_achieved?: string;
-  
+
   // Rescheduling Fields
   reschedule_reason?: string;
   reschedule_requested_at?: Date;
   previous_date?: Date;
   previous_time?: string;
+  isRescheduled?: boolean;
 }
 const BookingSchema = new Schema<BookingInterface>(
   {
@@ -72,15 +73,15 @@ const BookingSchema = new Schema<BookingInterface>(
       type: String,
       required: false,
     },
-     booking_dietry_preference: {
+    booking_dietry_preference: {
       type: String,
       required: false,
     },
-     booking_dish_preference: {
+    booking_dish_preference: {
       type: String,
       required: false,
     },
-     booking_allergy: {
+    booking_allergy: {
       type: String,
       required: false,
     },
@@ -100,10 +101,10 @@ const BookingSchema = new Schema<BookingInterface>(
     content_status: {
       type: String,
       enum: ["notUploaded", "pending", "canceled", "reupload", "accepted", "uploaded", "completed"],
-      default : "notUploaded"
+      default: "accepted"
     },
-    content_feedback:{
-      type:String,
+    content_feedback: {
+      type: String,
       default: "",
     },
     reason: {
@@ -122,7 +123,7 @@ const BookingSchema = new Schema<BookingInterface>(
       type: Boolean,
       default: false,
     },
-    
+
     // Payout Tracking Fields
     payout_amount: {
       type: Number,
@@ -150,7 +151,7 @@ const BookingSchema = new Schema<BookingInterface>(
       type: String,
       default: "",
     },
-    
+
     // Rescheduling Fields
     reschedule_reason: {
       type: String,
@@ -166,6 +167,10 @@ const BookingSchema = new Schema<BookingInterface>(
     },
     previous_time: {
       type: String,
+      required: false,
+    },
+    isRescheduled: {
+      type: Boolean,
       required: false,
     },
 

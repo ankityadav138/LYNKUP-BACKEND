@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import Wallet from "../Models/Wallet";
 import WalletTransaction from "../Models/WalletTransaction";
 import { resStatusData } from "../Responses/Response";
+import UserModel from "../Models/UserModel";
 
 /**
  * Middleware to check if business has sufficient wallet balance for offer creation
@@ -18,6 +19,19 @@ export const requireWalletBalance = async (
 
     if (!userId) {
       resStatusData(res, "error", "User not authenticated", {});
+      return;
+    }
+
+    // Fetch user to check userType
+    const user = await UserModel.findById(userId).select("userType") as any;
+    
+    // Skip balance check for admin users
+    if (user && user.userType === "admin") {
+      (req as any).walletInfo = {
+        isAdmin: true,
+        securityDeposit: SECURITY_DEPOSIT,
+      };
+      next();
       return;
     }
 

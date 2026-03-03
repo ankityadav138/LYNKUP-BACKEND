@@ -5,6 +5,7 @@ interface IRating {
   influencerId: mongoose.Types.ObjectId;
   bookingId:mongoose.Types.ObjectId;
   appFeedback?: string;
+  contentLink?: string;
   restroFeedback?: string;
   userFeedback?:string;
   profileType?:string;
@@ -21,6 +22,7 @@ const RatingSchema = new Schema<IRating>({
   influencerId: { type: Schema.Types.ObjectId, ref: "User", required: true },
   bookingId: { type: Schema.Types.ObjectId, ref:"booking", required: false },
   appFeedback: { type: String },
+  contentLink: { type: String },
   profileType: {type:String},
   restroFeedback: { type: String },
   content_presentation: { type: Number, required:false, min: 0, max: 100 },

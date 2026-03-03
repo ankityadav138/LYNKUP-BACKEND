@@ -40,7 +40,7 @@
 //     ending_type,
 //     creator_requirement,
 //   } = req.body;
-  
+
 //   const files = req.files;
 //   const mediaFiles = files ? files.map((file: any) => file.location) : [];
 //   const parsedvalid = typeof valid === "string" ? JSON.parse(valid) : valid;
@@ -162,7 +162,7 @@
 //   console.log("👤 User ID:", req.user?._id);
 //   console.log("📦 Request Body:", JSON.stringify(req.body, null, 2));
 //   console.log("📁 Files:", req.files?.length || 0, "files");
-  
+
 //   const business_id = req.user._id;
 //   const {
 //     name,
@@ -187,7 +187,7 @@
 //     collaboration_type = "milestone",
 //     fixed_amount,
 //   } = req.body;
-  
+
 //   console.log("✅ Extracted Data:", {
 //     name,
 //     offer_type,
@@ -200,19 +200,19 @@
 //   // Get wallet info from middleware (balance already checked)
 //   const walletInfo = req.walletInfo;
 //   let wallet = walletInfo?.wallet;
-  
+
 //   console.log("💰 Wallet Info from Middleware:", {
 //     hasWalletInfo: !!walletInfo,
 //     hasWallet: !!wallet,
 //     walletId: wallet?._id
 //   });
-  
+
 //   // Fallback: Get wallet if middleware didn't provide it
 //   if (!wallet) {
 //     console.log("⚠️ Wallet not in middleware, fetching...");
 //     wallet = await Wallet.findOne({ user_id: business_id });
 //   }
-  
+
 //   // Create wallet if doesn't exist
 //   if (!wallet) {
 //     console.log("🆕 Creating new wallet for user");
@@ -223,7 +223,7 @@
 //       available_balance: 0,
 //     });
 //   }
-  
+
 //   console.log("💰 Wallet Balance:", {
 //     total: wallet.total_balance,
 //     locked: wallet.locked_balance,
@@ -270,16 +270,16 @@
 //     resStatus(res, "false", "offer_type must be 'visite' or 'delivery'.");
 //     return;
 //   }
-  
+
 //   console.log("✅ Basic validation passed");
-  
+
 //   // Validate collaboration type
 //   if (collaboration_type && !["milestone", "paid"].includes(collaboration_type)) {
 //     console.log("❌ Invalid collaboration_type:", collaboration_type);
 //     resStatus(res, "false", "collaboration_type must be 'milestone' or 'paid'.");
 //     return;
 //   }
-  
+
 //   // Validate paid collaboration
 //   if (collaboration_type === "paid") {
 //     if (!fixed_amount || parseFloat(fixed_amount) <= 0) {
@@ -288,17 +288,17 @@
 //       return;
 //     }
 //   }
-  
+
 //   console.log("✅ Collaboration validation passed");
-  
+
 //   // Calculate total lock amount
 //   let totalLockAmount = MINIMUM_OFFER_AMOUNT; // ₹20,000 security deposit
 //   if (collaboration_type === "paid" && fixed_amount) {
 //     totalLockAmount += parseFloat(fixed_amount);
 //   }
-  
+
 //   console.log("💰 Total Lock Amount:", totalLockAmount);
-  
+
 //   // Check wallet balance for total amount needed
 //   if (wallet.available_balance < totalLockAmount) {
 //     console.log("❌ Insufficient wallet balance:", {
@@ -321,7 +321,7 @@
 //     );
 //     return;
 //   }
-  
+
 //   const startDate = new Date(parsedvalid.start);
 //   const endDate = new Date(parsedvalid.end);
 //   if (ending_type === "days") {
@@ -407,7 +407,7 @@
 //         const gstAmount = collaboration_type === "paid" 
 //           ? Math.round((parseFloat(fixed_amount) * 18) / 100)
 //           : 0;
-        
+
 //         invoiceService.sendWalletDeductionInvoice({
 //           transactionId: transaction._id.toString(),
 //           userName: `${user.firstName} ${user.lastName || ""}`.trim(),
@@ -696,7 +696,7 @@
 // //       }
 // //       return {};
 // //     }
-    
+
 // //     const pageNumber = parseInt(page as string, 10);
 // //     const limitNumber = parseInt(limit as string, 10);
 
@@ -744,8 +744,8 @@
 // //             : {}),
 // //         },
 // //       },
-     
-      
+
+
 // //       {
 // //         $lookup: {
 // //           from: "bookings",
@@ -767,7 +767,7 @@
 // //           },
 // //         },
 // //       },
-      
+
 // //       // {
 // //       //   $match: {
 // //       //     $expr: { $lt: ["$acceptedBookings", "$max_booking"] },
@@ -793,9 +793,9 @@
 // //           }
 // //         }
 // //       }
-      
+
 // //       ,
-         
+
 // //       {
 // //         $lookup: {
 // //           from: "foodtimings",
@@ -817,52 +817,52 @@
 // //     ]);
 // //     // if (selectedDate) {
 // //     //   const selectedDay = new Date(selectedDate).toLocaleString('en-US', { weekday: 'long' });
-    
+
 // //     //   const filteredOffers = offers.filter((offer: any) => {
 // //     //     const minFollower = offer.min_follower || 0;
 // //     //     const minReach = offer.min_reach || 0;
-    
+
 // //     //     const isOffDay = offer.offDays?.includes(selectedDay);
-    
+
 // //     //     return (
 // //     //       userFollowers >= minFollower &&
 // //     //       userReach >= minReach &&
 // //     //       !isOffDay
 // //     //     );
 // //     //   });
-    
+
 // //     //   // Pagination after filtering
 // //     //   const paginatedOffers = filteredOffers.slice(
 // //     //     (pageNumber - 1) * limitNumber,
 // //     //     pageNumber * limitNumber
 // //     //   );
-    
+
 // //     //   const response = {
 // //     //     totalOffers: filteredOffers.length,
 // //     //     currentPage: pageNumber,
 // //     //     totalPages: Math.ceil(filteredOffers.length / limitNumber),
 // //     //     offers: paginatedOffers,
 // //     //   };
-    
+
 // //     //   resStatusData(res, "success", "Offers retrieved successfully", response);
 // //     //   return; // ✅ Now safe to return after sending response
 // //     // }
 // //     if (selectedDate) {
 // //       const selectedDay = new Date(selectedDate).toLocaleString('en-US', { weekday: 'long' });
-      
+
 // //       // Filter offers based on follower/reach/offDay
 // //       const filteredOffers = offers.filter((offer: any) => {
 // //         const minFollower = offer.min_follower || 0;
 // //         const minReach = offer.min_reach || 0;
 // //         const isOffDay = selectedDay ? offer.offDays?.includes(selectedDay) : false;
-      
+
 // //         return (
 // //           userFollowers >= minFollower &&
 // //           userReach >= minReach &&
 // //           !isOffDay
 // //         );
 // //       });
-      
+
 // //       const normalizedOffers = filteredOffers.map((offer: any) => {
 // //         // Normalize userDetails.address
 // //         const rawUserAddress = offer?.userDetails?.address;
@@ -880,7 +880,7 @@
 // //         } else {
 // //           offer.userDetails.address = {};
 // //         }
-      
+
 // //         // ✅ Normalize offer-level address
 // //         const rawOfferAddress = offer?.address;
 // //         if (Array.isArray(rawOfferAddress)) {
@@ -897,19 +897,19 @@
 // //         } else {
 // //           offer.address = {};
 // //         }
-      
+
 // //         return offer;
 // //       });
-      
+
 // //     }
-    
-    
+
+
 // //     // const filteredOffers = offers.filter((offer: any) => {
 // //     //   const minFollower = offer.min_follower || 0;
 // //     //   const minReach = offer.min_reach || 0;
 // //     //   return userFollowers >= minFollower && userReach >= minReach;
 // //     // });
-  
+
 // //     // // Pagination after filtering
 // //     // const paginatedOffers = filteredOffers.slice(
 // //     //   (pageNumber - 1) * limitNumber,
@@ -924,13 +924,13 @@
 // //     // };
 
 // //     // resStatusData(res, "success", "Offers retrieved successfully", response);
-    
+
 // //     const filteredOffers = offers.filter((offer: any) => {
 // //       const minFollower = offer.min_follower || 0;
 // //       const minReach = offer.min_reach || 0;
 // //       return userFollowers >= minFollower && userReach >= minReach;
 // //     });
-    
+
 // //     // ✅ Normalize `offer.address` and `userDetails.address`
 // //     const normalizedOffers = filteredOffers.map((offer: any) => {
 // //       // Normalize userDetails.address
@@ -950,7 +950,7 @@
 // //       } else {
 // //         offer.userDetails.address = {};
 // //       }
-    
+
 // //       // Normalize offer.address
 // //       const rawOfferAddress = offer?.address;
 // //       if (Array.isArray(rawOfferAddress)) {
@@ -968,16 +968,16 @@
 // //       } else {
 // //         offer.address = {};
 // //       }
-    
+
 // //       return offer;
 // //     });
-    
+
 // //     // Pagination
 // //     const paginatedOffers = normalizedOffers.slice(
 // //       (pageNumber - 1) * limitNumber,
 // //       pageNumber * limitNumber
 // //     );
-    
+
 // //     // Response
 // //     const response = {
 // //       totalOffers: normalizedOffers.length,
@@ -985,10 +985,10 @@
 // //       totalPages: Math.ceil(normalizedOffers.length / limitNumber),
 // //       offers: paginatedOffers,
 // //     };
-    
+
 // //     resStatusData(res, "success", "Offers retrieved successfully", response);
-    
-    
+
+
 // //   } catch (error) {
 // //     console.error("Error fetching offers:", error);
 // //     resStatus(res, "false", "Failed to fetch offers");
@@ -1043,7 +1043,7 @@
 //   const userId = req.user._id;
 //   const { page = 1, limit = 10, search, selectedDate, city, state } = req.query;
 //   const { latitude, longitude } = req.body;
-  
+
 //   try {
 //     const pageNumber = parseInt(page as string, 10);
 //     const limitNumber = parseInt(limit as string, 10);
@@ -1051,10 +1051,10 @@
 //     const currentUser = await UserModel.findById(userId).select("businessDiscovery insights");
 //     const userFollowers = currentUser?.businessDiscovery?.followers_count || 0;
 //     const userReach = currentUser?.insights?.reach || 0;
-    
+
 //     // Build business filter based on location preferences
 //     let businessFilter: any = { userType: "business" };
-    
+
 //     // Optional city/state filtering
 //     if (city) {
 //       businessFilter.city = { $regex: new RegExp(city as string, "i") };
@@ -1062,7 +1062,7 @@
 //     if (state) {
 //       businessFilter["manual_location.state"] = { $regex: new RegExp(state as string, "i") };
 //     }
-    
+
 //     // If latitude/longitude provided, prioritize nearby businesses (optional sorting, not filtering)
 //     let businesses;
 //     if (latitude && longitude) {
@@ -1110,8 +1110,8 @@
 //             : {}),
 //         },
 //       },
-     
-      
+
+
 //       {
 //         $lookup: {
 //           from: "bookings",
@@ -1133,7 +1133,7 @@
 //           },
 //         },
 //       },
-      
+
 //       // {
 //       //   $match: {
 //       //     $expr: { $lt: ["$acceptedBookings", "$max_booking"] },
@@ -1159,9 +1159,9 @@
 //           }
 //         }
 //       }
-      
+
 //       ,
-         
+
 //       {
 //         $lookup: {
 //           from: "foodtimings",
@@ -1187,7 +1187,7 @@
 //         const minFollower = offer.min_follower || 0;
 //         const minReach = offer.min_reach || 0;
 //         const isOffDay = selectedDay ? offer.offDays?.includes(selectedDay) : false;
-  
+
 //         const meetsFollower = userFollowers >= minFollower;
 //         const meetsReach = userReach >= minReach;
 //   const formattedMinFollower = minFollower > 900 ? formatIndianNumber(minFollower) : minFollower;
@@ -1203,7 +1203,7 @@
 //             lock_reason = `You need at least ${formattedMinReach} reach to unlock the offer`;
 //           }
 //         }
-      
+
 //         return {
 //           ...offer,
 //           lock: locked,
@@ -1215,14 +1215,14 @@
 //         (pageNumber - 1) * limitNumber,
 //         pageNumber * limitNumber
 //       );
-  
+
 //       const response = {
 //         totalOffers: offersWithLock.length,
 //         currentPage: pageNumber,
 //         totalPages: Math.ceil(offersWithLock.length / limitNumber),
 //         offers: paginatedOffers,
 //       };
-  
+
 //       if (allOffersLocked) {
 //         resStatusData(res, "success", "All nearby offers are locked. You need more followers or reach to unlock them.", response);
 //       } else {
@@ -1230,7 +1230,7 @@
 //       }
 //       return; 
 //     }
-    
+
 //      const offersWithLock = offers.map((offer: any) => {
 //       const minFollower = offer.min_follower || 0;
 //       const minReach = offer.min_reach || 0;
@@ -1252,7 +1252,7 @@
 //           lock_reason = `You need at least ${formattedMinReach} reach to unlock the offer`;
 //         }
 //       }
-    
+
 //       return {
 //         ...offer,
 //         lock: locked,
@@ -2041,16 +2041,16 @@ export const createOffer = async (
   const parsedvalid = typeof valid === "string" ? JSON.parse(valid) : valid;
   const parsedLocations = typeof address === "string" ? JSON.parse(address) : address;
 
-if (!Array.isArray(parsedLocations) || parsedLocations.length === 0) {
-  resStatus(res, "false", "At least one address/location is required.");
-  return;
-}
+  if (!Array.isArray(parsedLocations) || parsedLocations.length === 0) {
+    resStatus(res, "false", "At least one address/location is required.");
+    return;
+  }
 
-const locations = parsedLocations.map((loc: any) => ({
-  type: loc.type || "Point",
-  coordinates: loc.coordinates,
-  address: loc.address || "",
-}));
+  const locations = parsedLocations.map((loc: any) => ({
+    type: loc.type || "Point",
+    coordinates: loc.coordinates,
+    address: loc.address || "",
+  }));
   if (!name || !offer_type || !business_id) {
     resStatus(res, "false", "Name, offer_type, and business_id are required.");
     return;
@@ -2086,7 +2086,7 @@ const locations = parsedLocations.map((loc: any) => ({
       //   coordinates: parsedLocation.coordinates,
       //   address: parsedLocation.address,
       // },
-      address:locations,
+      address: locations,
       min_follower,
       restro_type,
       hashtags,
@@ -2095,7 +2095,7 @@ const locations = parsedLocations.map((loc: any) => ({
       media: mediaFiles,
       details: details || "",
       offering: offering || "",
-      creator_requirement:creator_requirement || "",
+      creator_requirement: creator_requirement || "",
       offer_type,
       offDays: typeof offDays === "string" ? JSON.parse(offDays) : offDays,
       max_booking,
@@ -2107,37 +2107,37 @@ const locations = parsedLocations.map((loc: any) => ({
       ending_type,
     });
     resStatusData(res, "success", "Offer created successfully", offer);
-  }else{
-  const offer = await OfferModel.create({
-    adminId,
-    name,
-    business_id,
-    instagram_reel,
-    timeId,
-    tags,
-    restro_type,
-    hashtags,
-    // address:{
-    //   type: parsedLocation.type,
-    //   coordinates: parsedLocation.coordinates,
-    //   address: parsedLocation.address,
-    // },
-    address:locations,
-    content_delivery,
-    content_guidelines,
-    media: mediaFiles,
-    details: details || "",
-    creator_requirement:creator_requirement || "",
-    offering: offering || "",
-    offer_type,
-    offDays: typeof offDays === "string" ? JSON.parse(offDays) : offDays,
-    max_booking,
-    min_follower,
-    min_reach,
-    ending_type,
-  });
-  resStatusData(res, "success", "Offer created successfully", offer);
-}
+  } else {
+    const offer = await OfferModel.create({
+      adminId,
+      name,
+      business_id,
+      instagram_reel,
+      timeId,
+      tags,
+      restro_type,
+      hashtags,
+      // address:{
+      //   type: parsedLocation.type,
+      //   coordinates: parsedLocation.coordinates,
+      //   address: parsedLocation.address,
+      // },
+      address: locations,
+      content_delivery,
+      content_guidelines,
+      media: mediaFiles,
+      details: details || "",
+      creator_requirement: creator_requirement || "",
+      offering: offering || "",
+      offer_type,
+      offDays: typeof offDays === "string" ? JSON.parse(offDays) : offDays,
+      max_booking,
+      min_follower,
+      min_reach,
+      ending_type,
+    });
+    resStatusData(res, "success", "Offer created successfully", offer);
+  }
 };
 export const createOfferByBusiness = async (
   req: Request | any,
@@ -2147,7 +2147,7 @@ export const createOfferByBusiness = async (
   console.log("👤 User ID:", req.user?._id);
   console.log("📦 Request Body:", JSON.stringify(req.body, null, 2));
   console.log("📁 Files:", req.files?.length || 0, "files");
-  
+
   const business_id = req.user._id;
   const {
     name,
@@ -2173,7 +2173,9 @@ export const createOfferByBusiness = async (
     collaboration_type = "milestone",
     fixed_amount,
   } = req.body;
-  
+  console.log("usertype finding:", req.user.userType);
+
+
   console.log("✅ Extracted Data:", {
     name,
     offer_type,
@@ -2185,17 +2187,17 @@ export const createOfferByBusiness = async (
   // Get wallet info from middleware (balance already checked)
   const walletInfo = req.walletInfo;
   let wallet = walletInfo?.wallet;
-  
+
   console.log("💰 Wallet Info from Middleware:", {
     hasWalletInfo: !!walletInfo,
     hasWallet: !!wallet,
     walletId: wallet?._id
   });
-  
+
   // ALWAYS refetch wallet to ensure we have the latest data
   console.log("🔄 Refetching wallet from database for latest data...");
   wallet = await Wallet.findOne({ user_id: business_id });
-  
+
   // Create wallet if doesn't exist
   if (!wallet) {
     console.log("🆕 Creating new wallet for user");
@@ -2206,7 +2208,7 @@ export const createOfferByBusiness = async (
       available_balance: 0,
     });
   }
-  
+
   console.log("💰 Wallet Balance:", {
     total: wallet.total_balance,
     locked: wallet.locked_balance,
@@ -2220,23 +2222,23 @@ export const createOfferByBusiness = async (
   //   typeof address === "string" ? JSON.parse(address) : address;
   const parsedLocations = typeof address === "string" ? JSON.parse(address) : address;
 
-console.log("📍 Parsed Locations:", parsedLocations);
+  console.log("📍 Parsed Locations:", parsedLocations);
 
-if (!Array.isArray(parsedLocations) || parsedLocations.length === 0) {
-  console.log("❌ Address validation failed - not an array or empty");
-  resStatus(res, "false", "At least one address/location is required.");
-  return;
-}
+  if (!Array.isArray(parsedLocations) || parsedLocations.length === 0) {
+    console.log("❌ Address validation failed - not an array or empty");
+    resStatus(res, "false", "At least one address/location is required.");
+    return;
+  }
 
-const locations = parsedLocations.map((loc: any) => ({
-  type: loc.type || "Point",
-  coordinates: loc.coordinates,
-  address: loc.address || "",
-}));
+  const locations = parsedLocations.map((loc: any) => ({
+    type: loc.type || "Point",
+    coordinates: loc.coordinates,
+    address: loc.address || "",
+  }));
 
-console.log("📍 Formatted Locations:", locations);
+  console.log("📍 Formatted Locations:", locations);
 
-  if (!name || !offer_type ) {
+  if (!name || !offer_type) {
     console.log("❌ Missing required fields:", { name: !!name, offer_type: !!offer_type });
     resStatus(res, "false", "Name, offer_type, and business_id are required.");
     return;
@@ -2246,16 +2248,16 @@ console.log("📍 Formatted Locations:", locations);
     resStatus(res, "false", "offer_type must be 'visite' or 'delivery'.");
     return;
   }
-  
+
   console.log("✅ Basic validation passed");
-  
+
   // Validate collaboration type
   if (collaboration_type && !["milestone", "paid"].includes(collaboration_type)) {
     console.log("❌ Invalid collaboration_type:", collaboration_type);
     resStatus(res, "false", "collaboration_type must be 'milestone' or 'paid'.");
     return;
   }
-  
+
   // Validate paid collaboration
   if (collaboration_type === "paid") {
     if (!fixed_amount || parseFloat(fixed_amount) <= 0) {
@@ -2264,25 +2266,26 @@ console.log("📍 Formatted Locations:", locations);
       return;
     }
   }
-  
+
   console.log("✅ Collaboration validation passed");
-  
+
   // Calculate total lock amount
   let totalLockAmount = MINIMUM_OFFER_AMOUNT; // ₹20,000 security deposit
   if (collaboration_type === "paid" && fixed_amount) {
     totalLockAmount += parseFloat(fixed_amount);
   }
-  
+
   console.log("💰 Total Lock Amount:", totalLockAmount);
-  
+
   // Check wallet balance for total amount needed
-  if (wallet.available_balance < totalLockAmount) {
+  // Skip check for admin users
+  if (req.user.userType !== "admin" && wallet.available_balance < totalLockAmount) {
     console.log("❌ Insufficient wallet balance:", {
       required: totalLockAmount,
       available: wallet.available_balance,
       shortfall: totalLockAmount - wallet.available_balance
     });
-    resStatusData(res, "error", 
+    resStatusData(res, "error",
       `Insufficient wallet balance. Required: ₹${totalLockAmount.toLocaleString("en-IN")}`,
       {
         code: "INSUFFICIENT_BALANCE",
@@ -2297,7 +2300,7 @@ console.log("📍 Formatted Locations:", locations);
     );
     return;
   }
-  
+
   const startDate = new Date(parsedvalid.start);
   const endDate = new Date(parsedvalid.end);
   if (ending_type === "days") {
@@ -2314,31 +2317,36 @@ console.log("📍 Formatted Locations:", locations);
       return;
     }
 
-    // Lock wallet balance BEFORE creating offer
+    // Lock wallet balance BEFORE creating offer (skip for admin)
     try {
-      console.log("🔒 Attempting to lock amount:", totalLockAmount);
-      console.log("💰 Wallet balance before lock:", {
-        total: wallet.total_balance,
-        available: wallet.available_balance,
-        locked: wallet.locked_balance
-      });
-      
-      const updatedWallet = await wallet.lockAmount(totalLockAmount);
-      
-      console.log("✅ Amount locked successfully");
-      console.log("💰 Wallet balance after lock:", {
-        total: updatedWallet.total_balance,
-        available: updatedWallet.available_balance,
-        locked: updatedWallet.locked_balance
-      });
-      
-      // Double-check: Refetch wallet from DB to confirm save
-      const walletCheck = await Wallet.findById(wallet._id);
-      console.log("🔍 Wallet reloaded from DB:", {
-        total: walletCheck?.total_balance,
-        available: walletCheck?.available_balance,
-        locked: walletCheck?.locked_balance
-      });
+      // Only lock funds for non-admin users
+      if (req.user.userType !== "admin") {
+        console.log("🔒 Attempting to lock amount:", totalLockAmount);
+        console.log("💰 Wallet balance before lock:", {
+          total: wallet.total_balance,
+          available: wallet.available_balance,
+          locked: wallet.locked_balance
+        });
+
+        const updatedWallet = await wallet.lockAmount(totalLockAmount);
+
+        console.log("✅ Amount locked successfully");
+        console.log("💰 Wallet balance after lock:", {
+          total: updatedWallet.total_balance,
+          available: updatedWallet.available_balance,
+          locked: updatedWallet.locked_balance
+        });
+
+        // Double-check: Refetch wallet from DB to confirm save
+        const walletCheck = await Wallet.findById(wallet._id);
+        console.log("🔍 Wallet reloaded from DB:", {
+          total: walletCheck?.total_balance,
+          available: walletCheck?.available_balance,
+          locked: walletCheck?.locked_balance
+        });
+      } else {
+        console.log("⏭️ Skipping wallet lock for admin user");
+      }
 
       // Calculate withdrawal eligibility date (30 days from now)
       const withdrawalDate = new Date();
@@ -2356,7 +2364,7 @@ console.log("📍 Formatted Locations:", locations);
         //   coordinates: parsedLocation.coordinates,
         //   address: parsedLocation.address,
         // },
-        address:locations,
+        address: locations,
         min_follower,
         // restro_type,
         hashtags,
@@ -2365,7 +2373,7 @@ console.log("📍 Formatted Locations:", locations);
         media: mediaFiles,
         details: details || "",
         offering: offering || "",
-        creator_requirement:creator_requirement || "",
+        creator_requirement: creator_requirement || "",
         offer_type,
         offDays: typeof offDays === "string" ? JSON.parse(offDays) : offDays,
         max_booking,
@@ -2383,45 +2391,47 @@ console.log("📍 Formatted Locations:", locations);
         withdrawal_requested: false,
       });
 
-      // Create wallet transaction record
-      const transaction = await WalletTransaction.create({
-        wallet_id: wallet._id,
-        user_id: business_id,
-        type: "lock",
-        amount: totalLockAmount,
-        status: "completed",
-        description: collaboration_type === "paid" 
-          ? `Locked for paid collab: ${name} (₹${MINIMUM_OFFER_AMOUNT.toLocaleString()} security + ₹${fixed_amount.toLocaleString()} payment)`
-          : `Amount locked for offer: ${name}`,
-        reference_type: "offer",
-        reference_id: offer._id,
-        balance_before: wallet.available_balance + totalLockAmount,
-        balance_after: wallet.available_balance,
-      });
-
-      // Get user details and send invoice
-      const user = await UserModel.findById(business_id);
-      if (user && user.email) {
-        const gstAmount = collaboration_type === "paid" 
-          ? Math.round((parseFloat(fixed_amount) * 18) / 100)
-          : 0;
-        
-        invoiceService.sendWalletDeductionInvoice({
-          transactionId: transaction._id.toString(),
-          userName: `${user.firstName} ${user.lastName || ""}`.trim(),
-          userEmail: user.email,
+      // Create wallet transaction record (only for non-admin)
+      if (req.user.userType !== "admin") {
+        const transaction = await WalletTransaction.create({
+          wallet_id: wallet._id,
+          user_id: business_id,
+          type: "lock",
           amount: totalLockAmount,
-          purpose: collaboration_type === "paid" 
-            ? "Paid Collaboration - Offer Creation"
-            : "Offer Security Deposit",
+          status: "completed",
           description: collaboration_type === "paid"
-            ? `Security deposit ₹${MINIMUM_OFFER_AMOUNT.toLocaleString()} + Creator payment ₹${fixed_amount.toLocaleString()} (GST 18% = ₹${gstAmount.toLocaleString()})`
-            : `Security deposit locked for creating offer: ${name}. Will be released after 30 days.`,
-          offerId: (offer._id as any).toString(),
-          offerName: name,
-          remainingBalance: wallet.available_balance,
-          company: "LYNKUP",
-        }).catch(err => console.error("Failed to send invoice:", err));
+            ? `Locked for paid collab: ${name} (₹${MINIMUM_OFFER_AMOUNT.toLocaleString()} security + ₹${fixed_amount.toLocaleString()} payment)`
+            : `Amount locked for offer: ${name}`,
+          reference_type: "offer",
+          reference_id: offer._id,
+          balance_before: wallet.available_balance + totalLockAmount,
+          balance_after: wallet.available_balance,
+        });
+
+        // Get user details and send invoice
+        const user = await UserModel.findById(business_id);
+        if (user && user.email) {
+          const gstAmount = collaboration_type === "paid"
+            ? Math.round((parseFloat(fixed_amount) * 18) / 100)
+            : 0;
+
+          invoiceService.sendWalletDeductionInvoice({
+            transactionId: transaction._id.toString(),
+            userName: `${user.firstName} ${user.lastName || ""}`.trim(),
+            userEmail: user.email,
+            amount: totalLockAmount,
+            purpose: collaboration_type === "paid"
+              ? "Paid Collaboration - Offer Creation"
+              : "Offer Security Deposit",
+            description: collaboration_type === "paid"
+              ? `Security deposit ₹${MINIMUM_OFFER_AMOUNT.toLocaleString()} + Creator payment ₹${fixed_amount.toLocaleString()} (GST 18% = ₹${gstAmount.toLocaleString()})`
+              : `Security deposit locked for creating offer: ${name}. Will be released after 30 days.`,
+            offerId: (offer._id as any).toString(),
+            offerName: name,
+            remainingBalance: wallet.available_balance,
+            company: "LYNKUP",
+          }).catch(err => console.error("Failed to send invoice:", err));
+        }
       }
 
       console.log("✅ Offer created successfully (days mode):", offer._id);
@@ -2445,32 +2455,37 @@ console.log("📍 Formatted Locations:", locations);
       resStatusData(res, "error", error.message, null);
       return;
     }
-  }else{
-    // Lock wallet balance BEFORE creating offer (ending_type = "booking")
+  } else {
+    // Lock wallet balance BEFORE creating offer (ending_type = "booking") - skip for admin
     try {
-      console.log("🔒 Attempting to lock amount (booking mode):", totalLockAmount);
-      console.log("💰 Wallet balance before lock:", {
-        total: wallet.total_balance,
-        available: wallet.available_balance,
-        locked: wallet.locked_balance
-      });
-      
-      const updatedWallet = await wallet.lockAmount(totalLockAmount);
-      
-      console.log("✅ Amount locked successfully (booking mode)");
-      console.log("💰 Wallet balance after lock:", {
-        total: updatedWallet.total_balance,
-        available: updatedWallet.available_balance,
-        locked: updatedWallet.locked_balance
-      });
-      
-      // Double-check: Refetch wallet from DB to confirm save
-      const walletCheck = await Wallet.findById(wallet._id);
-      console.log("🔍 Wallet reloaded from DB:", {
-        total: walletCheck?.total_balance,
-        available: walletCheck?.available_balance,
-        locked: walletCheck?.locked_balance
-      });
+      // Only lock funds for non-admin users
+      if (req.user.userType !== "admin") {
+        console.log("🔒 Attempting to lock amount (booking mode):", totalLockAmount);
+        console.log("💰 Wallet balance before lock:", {
+          total: wallet.total_balance,
+          available: wallet.available_balance,
+          locked: wallet.locked_balance
+        });
+
+        const updatedWallet = await wallet.lockAmount(totalLockAmount);
+
+        console.log("✅ Amount locked successfully (booking mode)");
+        console.log("💰 Wallet balance after lock:", {
+          total: updatedWallet.total_balance,
+          available: updatedWallet.available_balance,
+          locked: updatedWallet.locked_balance
+        });
+
+        // Double-check: Refetch wallet from DB to confirm save
+        const walletCheck = await Wallet.findById(wallet._id);
+        console.log("🔍 Wallet reloaded from DB:", {
+          total: walletCheck?.total_balance,
+          available: walletCheck?.available_balance,
+          locked: walletCheck?.locked_balance
+        });
+      } else {
+        console.log("⏭️ Skipping wallet lock for admin user (booking mode)");
+      }
 
       // Calculate withdrawal eligibility date (30 days from now)
       const withdrawalDate = new Date();
@@ -2489,14 +2504,14 @@ console.log("📍 Formatted Locations:", locations);
         //   coordinates: parsedLocation.coordinates,
         //   address: parsedLocation.address,
         // },
-        address:locations,
+        address: locations,
         hashtags,
         content_delivery,
         content_guidelines,
         media: mediaFiles,
         details: details || "",
         offering: offering || "",
-        creator_requirement:creator_requirement || "",
+        creator_requirement: creator_requirement || "",
         offer_type,
         offDays: typeof offDays === "string" ? JSON.parse(offDays) : offDays,
         max_booking,
@@ -2511,23 +2526,25 @@ console.log("📍 Formatted Locations:", locations);
         withdrawal_requested: false,
       });
 
-      // Create wallet transaction record
-      const transactionDescription = collaboration_type === "paid"
-        ? `Locked for paid collaboration offer: ${name} (₹20,000 security + ₹${fixed_amount} payment)`
-        : `Locked for milestone-based offer: ${name}`;
+      // Create wallet transaction record (only for non-admin)
+      if (req.user.userType !== "admin") {
+        const transactionDescription = collaboration_type === "paid"
+          ? `Locked for paid collaboration offer: ${name} (₹20,000 security + ₹${fixed_amount} payment)`
+          : `Locked for milestone-based offer: ${name}`;
 
-      await WalletTransaction.create({
-        wallet_id: wallet._id,
-        user_id: business_id,
-        type: "lock",
-        amount: totalLockAmount,
-        status: "completed",
-        description: transactionDescription,
-        reference_type: "offer",
-        reference_id: offer._id,
-        balance_before: wallet.available_balance + totalLockAmount,
-        balance_after: wallet.available_balance,
-      });
+        await WalletTransaction.create({
+          wallet_id: wallet._id,
+          user_id: business_id,
+          type: "lock",
+          amount: totalLockAmount,
+          status: "completed",
+          description: transactionDescription,
+          reference_type: "offer",
+          reference_id: offer._id,
+          balance_before: wallet.available_balance + totalLockAmount,
+          balance_after: wallet.available_balance,
+        });
+      }
 
       console.log("✅ Offer created successfully (booking mode):", offer._id);
       console.log("💰 Final Wallet Balance:", {
@@ -2562,11 +2579,15 @@ export const showOfferAdmin = async (
   try {
     const pageNumber = parseInt(page as string, 10);
     const limitNumber = parseInt(limit as string, 10);
-    const matchCondition: any = {
-      "userDetails.userType" : "business",
-      isdeleted: false,
-      ...(userType === "business" && { business_id: new mongoose.Types.ObjectId(userId) }),
-    };
+    const isAdmin = userType === "admin";
+    const matchCondition: any = isAdmin
+      ? { isdeleted: false }
+      : {
+        "userDetails.userType": "business",
+        isdeleted: false,
+        ...(userType === "business" && { business_id: new mongoose.Types.ObjectId(userId) }),
+      };
+
 
     if (search) {
       matchCondition.$or = [
@@ -2585,7 +2606,10 @@ export const showOfferAdmin = async (
         },
       },
       {
-        $unwind: "$userDetails",
+        $unwind: {
+          path: "$userDetails",
+          preserveNullAndEmptyArrays: isAdmin,
+        },
       },
       {
         $match: matchCondition,
@@ -2639,11 +2663,11 @@ export const showOfferAdmin = async (
           isdeleted: 1,
           max_booking: 1,
           ending_type: 1,
-          status:1,
+          status: 1,
           min_reach: 1,
           valid: 1,
           restro_type: 1,
-          min_follower: 1 ,
+          min_follower: 1,
           collaboration_type: 1,
           fixed_amount: 1,
           locked_amount: 1,
@@ -2689,6 +2713,8 @@ export const showOfferAdmin = async (
       offers,
     };
 
+    console.log("response sent", response);
+
     resStatusData(res, "success", "Offers retrieved successfully", response);
   } catch (error) {
     console.error("Error fetching offers for admin/business:", error);
@@ -2728,7 +2754,7 @@ export const showOfferAdmin = async (
 //       }
 //       return {};
 //     }
-    
+
 //     const pageNumber = parseInt(page as string, 10);
 //     const limitNumber = parseInt(limit as string, 10);
 
@@ -2776,8 +2802,8 @@ export const showOfferAdmin = async (
 //             : {}),
 //         },
 //       },
-     
-      
+
+
 //       {
 //         $lookup: {
 //           from: "bookings",
@@ -2799,7 +2825,7 @@ export const showOfferAdmin = async (
 //           },
 //         },
 //       },
-      
+
 //       // {
 //       //   $match: {
 //       //     $expr: { $lt: ["$acceptedBookings", "$max_booking"] },
@@ -2825,9 +2851,9 @@ export const showOfferAdmin = async (
 //           }
 //         }
 //       }
-      
+
 //       ,
-         
+
 //       {
 //         $lookup: {
 //           from: "foodtimings",
@@ -2849,53 +2875,53 @@ export const showOfferAdmin = async (
 //     ]);
 //     // if (selectedDate) {
 //     //   const selectedDay = new Date(selectedDate).toLocaleString('en-US', { weekday: 'long' });
-    
+
 //     //   const filteredOffers = offers.filter((offer: any) => {
 //     //     const minFollower = offer.min_follower || 0;
 //     //     const minReach = offer.min_reach || 0;
-    
+
 //     //     const isOffDay = offer.offDays?.includes(selectedDay);
-    
+
 //     //     return (
 //     //       userFollowers >= minFollower &&
 //     //       userReach >= minReach &&
 //     //       !isOffDay
 //     //     );
 //     //   });
-    
+
 //     //   // Pagination after filtering
 //     //   const paginatedOffers = filteredOffers.slice(
 //     //     (pageNumber - 1) * limitNumber,
 //     //     pageNumber * limitNumber
 //     //   );
-    
+
 //     //   const response = {
 //     //     totalOffers: filteredOffers.length,
 //     //     currentPage: pageNumber,
 //     //     totalPages: Math.ceil(filteredOffers.length / limitNumber),
 //     //     offers: paginatedOffers,
 //     //   };
-    
+
 //     //   resStatusData(res, "success", "Offers retrieved successfully", response);
 //     //   return; // ✅ Now safe to return after sending response
 //     // }
 //     if (selectedDate) {
 //       const selectedDay = new Date(selectedDate).toLocaleString('en-US', { weekday: 'long' });
-    
+
 //       // Filter offers based on follower/reach/offDay
 //       const filteredOffers = offers.filter((offer: any) => {
 //         const minFollower = offer.min_follower || 0;
 //         const minReach = offer.min_reach || 0;
-    
+
 //         const isOffDay = offer.offDays?.includes(selectedDay);
-    
+
 //         return (
 //           userFollowers >= minFollower &&
 //           userReach >= minReach &&
 //           !isOffDay
 //         );
 //       });
-    
+
 //       const normalizedOffers = filteredOffers.map((offer: any) => {
 //         // Normalize userDetails.address
 //         const rawUserAddress = offer?.userDetails?.address;
@@ -2913,7 +2939,7 @@ export const showOfferAdmin = async (
 //         } else {
 //           offer.userDetails.address = {};
 //         }
-      
+
 //         // ✅ Normalize offer-level address
 //         const rawOfferAddress = offer?.address;
 //         if (Array.isArray(rawOfferAddress)) {
@@ -2930,19 +2956,19 @@ export const showOfferAdmin = async (
 //         } else {
 //           offer.address = {};
 //         }
-      
+
 //         return offer;
 //       });
-      
+
 //     }
-    
-    
+
+
 //     // const filteredOffers = offers.filter((offer: any) => {
 //     //   const minFollower = offer.min_follower || 0;
 //     //   const minReach = offer.min_reach || 0;
 //     //   return userFollowers >= minFollower && userReach >= minReach;
 //     // });
-  
+
 //     // // Pagination after filtering
 //     // const paginatedOffers = filteredOffers.slice(
 //     //   (pageNumber - 1) * limitNumber,
@@ -2962,7 +2988,7 @@ export const showOfferAdmin = async (
 //       const minReach = offer.min_reach || 0;
 //       return userFollowers >= minFollower && userReach >= minReach;
 //     });
-    
+
 //     // ✅ Normalize `offer.address` and `userDetails.address`
 //     const normalizedOffers = filteredOffers.map((offer: any) => {
 //       // Normalize userDetails.address
@@ -2982,7 +3008,7 @@ export const showOfferAdmin = async (
 //       } else {
 //         offer.userDetails.address = {};
 //       }
-    
+
 //       // Normalize offer.address
 //       const rawOfferAddress = offer?.address;
 //       if (Array.isArray(rawOfferAddress)) {
@@ -3000,16 +3026,16 @@ export const showOfferAdmin = async (
 //       } else {
 //         offer.address = {};
 //       }
-    
+
 //       return offer;
 //     });
-    
+
 //     // Pagination
 //     const paginatedOffers = normalizedOffers.slice(
 //       (pageNumber - 1) * limitNumber,
 //       pageNumber * limitNumber
 //     );
-    
+
 //     // Response
 //     const response = {
 //       totalOffers: normalizedOffers.length,
@@ -3017,16 +3043,16 @@ export const showOfferAdmin = async (
 //       totalPages: Math.ceil(normalizedOffers.length / limitNumber),
 //       offers: paginatedOffers,
 //     };
-    
+
 //     resStatusData(res, "success", "Offers retrieved successfully", response);
-    
-    
+
+
 //   } catch (error) {
 //     console.error("Error fetching offers:", error);
 //     resStatus(res, "false", "Failed to fetch offers");
 //   }
 // };
-function formatIndianNumber(x:any) {
+function formatIndianNumber(x: any) {
   return Number(x).toLocaleString('en-US');
 }
 
@@ -3075,7 +3101,7 @@ export const showOfferUser = async (
   const userId = req.user._id;
   const { page = 1, limit = 10, search, selectedDate, city, state } = req.query;
   const { latitude, longitude } = req.body;
-  
+
   try {
     const pageNumber = parseInt(page as string, 10);
     const limitNumber = parseInt(limit as string, 10);
@@ -3083,10 +3109,10 @@ export const showOfferUser = async (
     const currentUser = await UserModel.findById(userId).select("businessDiscovery insights");
     const userFollowers = currentUser?.businessDiscovery?.followers_count || 0;
     const userReach = currentUser?.insights?.reach || 0;
-    
+
     // Build business filter based on location preferences
     let businessFilter: any = { userType: "business" };
-    
+
     // Optional city/state filtering
     if (city) {
       businessFilter.city = { $regex: new RegExp(city as string, "i") };
@@ -3094,7 +3120,7 @@ export const showOfferUser = async (
     if (state) {
       businessFilter["manual_location.state"] = { $regex: new RegExp(state as string, "i") };
     }
-    
+
     // If latitude/longitude provided, prioritize nearby businesses (optional sorting, not filtering)
     let businesses;
     if (latitude && longitude) {
@@ -3116,13 +3142,13 @@ export const showOfferUser = async (
     const bookedOffers = await BookingModel.find({ userId }).select("offerId");
     const bookedOfferIds = bookedOffers.map((booking) => booking.offerId);
     let dateFilter: any = {};
-if (selectedDate) {
-  const selected = new Date(new Date(selectedDate as string).toDateString());
-  dateFilter = {
-    "valid.start": { $lte: selected },
-    "valid.end": { $gte: selected },
-  };
-}
+    if (selectedDate) {
+      const selected = new Date(new Date(selectedDate as string).toDateString());
+      dateFilter = {
+        "valid.start": { $lte: selected },
+        "valid.end": { $gte: selected },
+      };
+    }
 
     const offers = await OfferModel.aggregate([
       {
@@ -3134,16 +3160,16 @@ if (selectedDate) {
           ...dateFilter,
           ...(search
             ? {
-                $or: [
-                  { name: { $regex: new RegExp(search as string, "i") } },
-                  { offer_type: { $regex: new RegExp(search as string, "i") } },
-                ],
-              }
+              $or: [
+                { name: { $regex: new RegExp(search as string, "i") } },
+                { offer_type: { $regex: new RegExp(search as string, "i") } },
+              ],
+            }
             : {}),
         },
       },
-     
-      
+
+
       {
         $lookup: {
           from: "bookings",
@@ -3165,7 +3191,7 @@ if (selectedDate) {
           },
         },
       },
-      
+
       // {
       //   $match: {
       //     $expr: { $lt: ["$acceptedBookings", "$max_booking"] },
@@ -3191,9 +3217,9 @@ if (selectedDate) {
           }
         }
       }
-      
+
       ,
-         
+
       {
         $lookup: {
           from: "foodtimings",
@@ -3202,7 +3228,7 @@ if (selectedDate) {
           as: "foodTimings",
         },
       },
-      
+
       {
         $lookup: {
           from: "users",
@@ -3220,11 +3246,11 @@ if (selectedDate) {
         const minFollower = offer.min_follower || 0;
         const minReach = offer.min_reach || 0;
         const isOffDay = selectedDay ? offer.offDays?.includes(selectedDay) : false;
-  
+
         const meetsFollower = userFollowers >= minFollower;
         const meetsReach = userReach >= minReach;
-  const formattedMinFollower = minFollower > 900 ? formatIndianNumber(minFollower) : minFollower;
-const formattedMinReach = minReach > 900 ? formatIndianNumber(minReach) : minReach;
+        const formattedMinFollower = minFollower > 900 ? formatIndianNumber(minFollower) : minFollower;
+        const formattedMinReach = minReach > 900 ? formatIndianNumber(minReach) : minReach;
         const locked = !(meetsFollower && meetsReach && !isOffDay);
         let lock_reason = null;
         if (locked) {
@@ -3236,7 +3262,7 @@ const formattedMinReach = minReach > 900 ? formatIndianNumber(minReach) : minRea
             lock_reason = `You need at least ${formattedMinReach} reach to unlock the offer`;
           }
         }
-      
+
         return {
           ...offer,
           lock: locked,
@@ -3248,23 +3274,23 @@ const formattedMinReach = minReach > 900 ? formatIndianNumber(minReach) : minRea
         (pageNumber - 1) * limitNumber,
         pageNumber * limitNumber
       );
-  
+
       const response = {
         totalOffers: offersWithLock.length,
         currentPage: pageNumber,
         totalPages: Math.ceil(offersWithLock.length / limitNumber),
         offers: paginatedOffers,
       };
-  
+
       if (allOffersLocked) {
         resStatusData(res, "success", "All nearby offers are locked. You need more followers or reach to unlock them.", response);
       } else {
         resStatusData(res, "success", "Offers retrieved successfully", response);
       }
-      return; 
+      return;
     }
-    
-     const offersWithLock = offers.map((offer: any) => {
+
+    const offersWithLock = offers.map((offer: any) => {
       const minFollower = offer.min_follower || 0;
       const minReach = offer.min_reach || 0;
       // const isOffDay = selectedDay ? offer.offDays?.includes(selectedDay) : false;
@@ -3274,7 +3300,7 @@ const formattedMinReach = minReach > 900 ? formatIndianNumber(minReach) : minRea
       const formattedMinFollower = minFollower > 900 ? formatIndianNumber(minFollower) : minFollower;
       const formattedMinReach = minReach > 900 ? formatIndianNumber(minReach) : minReach;
 
-      const locked = !(meetsFollower && meetsReach );
+      const locked = !(meetsFollower && meetsReach);
       let lock_reason = null;
       if (locked) {
         if (!meetsFollower && !meetsReach) {
@@ -3285,7 +3311,7 @@ const formattedMinReach = minReach > 900 ? formatIndianNumber(minReach) : minRea
           lock_reason = `You need at least ${formattedMinReach} reach to unlock the offer`;
         }
       }
-    
+
       return {
         ...offer,
         lock: locked,
@@ -3353,79 +3379,79 @@ export const editOffer = async (
   //   typeof address === "string" ? JSON.parse(address) : address;
   const parsedLocations = typeof address === "string" ? JSON.parse(address) : address;
 
-// if (!Array.isArray(parsedLocations) || parsedLocations.length === 0) {
-//   resStatus(res, "false", "At least one address/location is required.");
-//   return;
-// }
+  // if (!Array.isArray(parsedLocations) || parsedLocations.length === 0) {
+  //   resStatus(res, "false", "At least one address/location is required.");
+  //   return;
+  // }
 
-const locations = parsedLocations.map((loc: any) => ({
-  type: loc.type || "Point",
-  coordinates: loc.coordinates,
-  address: loc.address || "",
-}));
+  const locations = parsedLocations.map((loc: any) => ({
+    type: loc.type || "Point",
+    coordinates: loc.coordinates,
+    address: loc.address || "",
+  }));
   if (!offerId) {
     resStatus(res, "false", "Offer ID is required.");
     return;
   }
 
- else if (!["visite", "delivery"].includes(offer_type)) {
+  else if (!["visite", "delivery"].includes(offer_type)) {
     resStatus(res, "false", "offer_type must be 'visite' or 'delivery'.");
     return;
   }
-else{
-  const existingOffer = await OfferModel.findById(offerId);
-  if (!existingOffer) {
-    resStatus(res, "false", "Offer not found.");
-    return;
-  }
-  const startDate = new Date(parsedvalid.start);
-  const endDate = new Date(parsedvalid.end);
-  const combinedMedia = [...(existingOffer.media || []), ...mediaFiles];
-  const updatedOffer = await OfferModel.findByIdAndUpdate(
-    offerId,
-    {
-      name,
-      details,
-      min_reach,
-      max_booking,
-      offering,
-      restro_type,
-      offer_type,
-      creator_requirement,
-      offDays: typeof offDays === "string" ? JSON.parse(offDays) : offDays,
-      // address:{
-      //   type: parsedLocation.type,
-      //   coordinates: parsedLocation.coordinates,
-      //   address: parsedLocation.address,
-      // },
-      address:locations,
-      valid: {
-        start: startDate,
-        end: endDate,
+  else {
+    const existingOffer = await OfferModel.findById(offerId);
+    if (!existingOffer) {
+      resStatus(res, "false", "Offer not found.");
+      return;
+    }
+    const startDate = new Date(parsedvalid.start);
+    const endDate = new Date(parsedvalid.end);
+    const combinedMedia = [...(existingOffer.media || []), ...mediaFiles];
+    const updatedOffer = await OfferModel.findByIdAndUpdate(
+      offerId,
+      {
+        name,
+        details,
+        min_reach,
+        max_booking,
+        offering,
+        restro_type,
+        offer_type,
+        creator_requirement,
+        offDays: typeof offDays === "string" ? JSON.parse(offDays) : offDays,
+        // address:{
+        //   type: parsedLocation.type,
+        //   coordinates: parsedLocation.coordinates,
+        //   address: parsedLocation.address,
+        // },
+        address: locations,
+        valid: {
+          start: startDate,
+          end: endDate,
+        },
+        min_follower,
+        business_id,
+        instagram_reel,
+        timeId,
+        tags,
+        hashtags,
+        content_delivery,
+        content_guidelines,
+        ending_type,
+        status,
+        ...(mediaFiles.length > 0 && { media: combinedMedia }),
       },
-      min_follower,
-      business_id,
-      instagram_reel,
-      timeId,
-      tags,
-      hashtags,
-      content_delivery,
-      content_guidelines,
-      ending_type,
-      status,
-      ...(mediaFiles.length > 0 && { media: combinedMedia }),
-    },
-    { new: true }
-  );
+      { new: true }
+    );
 
-  if (!updatedOffer) {
-    resStatus(res, "false", "Offer not found.");
-    return;
+    if (!updatedOffer) {
+      resStatus(res, "false", "Offer not found.");
+      return;
+    }
+    else {
+      resStatusData(res, "success", "Offer updated successfully", updatedOffer);
+    }
   }
-else{
-  resStatusData(res, "success", "Offer updated successfully", updatedOffer);
-}
-}
 };
 export const editOfferByBusiness = async (
   req: Request | any,
@@ -3464,72 +3490,72 @@ export const editOfferByBusiness = async (
   //   typeof address === "string" ? JSON.parse(address) : address;
   const parsedLocations = typeof address === "string" ? JSON.parse(address) : address;
 
-// if (!Array.isArray(parsedLocations) || parsedLocations.length === 0) {
-//   resStatus(res, "false", "At least one address/location is required.");
-//   return;
-// }
+  // if (!Array.isArray(parsedLocations) || parsedLocations.length === 0) {
+  //   resStatus(res, "false", "At least one address/location is required.");
+  //   return;
+  // }
 
-const locations = parsedLocations.map((loc: any) => ({
-  type: loc.type || "Point",
-  coordinates: loc.coordinates,
-  address: loc.address || "",
-}));
+  const locations = parsedLocations.map((loc: any) => ({
+    type: loc.type || "Point",
+    coordinates: loc.coordinates,
+    address: loc.address || "",
+  }));
   if (!offerId) {
     resStatus(res, "false", "Offer ID is required.");
     return;
   }
- else if (!["visite", "delivery"].includes(offer_type)) {
+  else if (!["visite", "delivery"].includes(offer_type)) {
     resStatus(res, "false", "offer_type must be 'visite' or 'delivery'.");
     return;
   }
-else{
-  const startDate = new Date(parsedvalid.start);
-  const endDate = new Date(parsedvalid.end);
-  const updatedOffer = await OfferModel.findByIdAndUpdate(
-    offerId,
-    {
-      name,
-      details,
-      min_reach,
-      max_booking,
-      offering,
-      // restro_type,
-      offer_type,
-      creator_requirement,
-      offDays: typeof offDays === "string" ? JSON.parse(offDays) : offDays,
-      // address:{
-      //   type: parsedLocation.type,
-      //   coordinates: parsedLocation.coordinates,
-      //   address: parsedLocation.address,
-      // },
-      address:locations,
-      valid: {
-        start: startDate,
-        end: endDate,
+  else {
+    const startDate = new Date(parsedvalid.start);
+    const endDate = new Date(parsedvalid.end);
+    const updatedOffer = await OfferModel.findByIdAndUpdate(
+      offerId,
+      {
+        name,
+        details,
+        min_reach,
+        max_booking,
+        offering,
+        // restro_type,
+        offer_type,
+        creator_requirement,
+        offDays: typeof offDays === "string" ? JSON.parse(offDays) : offDays,
+        // address:{
+        //   type: parsedLocation.type,
+        //   coordinates: parsedLocation.coordinates,
+        //   address: parsedLocation.address,
+        // },
+        address: locations,
+        valid: {
+          start: startDate,
+          end: endDate,
+        },
+        min_follower,
+        business_id,
+        instagram_reel,
+        timeId,
+        tags,
+        hashtags,
+        content_delivery,
+        content_guidelines,
+        ending_type,
+        status,
+        ...(mediaFiles.length > 0 && { media: mediaFiles }),
       },
-      min_follower,
-      business_id,
-      instagram_reel,
-      timeId,
-      tags,
-      hashtags,
-      content_delivery,
-      content_guidelines,
-      ending_type,
-      status,
-      ...(mediaFiles.length > 0 && { media: mediaFiles }),
-    },
-    { new: true }
-  );
+      { new: true }
+    );
 
-  if (!updatedOffer) {
-    resStatus(res, "false", "Offer not found.");
-    return;
+    if (!updatedOffer) {
+      resStatus(res, "false", "Offer not found.");
+      return;
+    }
+    else {
+      resStatusData(res, "success", "Offer updated successfully", updatedOffer);
+    }
   }
-else{
-  resStatusData(res, "success", "Offer updated successfully", updatedOffer);
-}
-}
 };
 export const deleteOffer = async (
   req: Request | any,
@@ -3626,7 +3652,7 @@ export const Feedback = async (
   res: Response
 ): Promise<void> => {
   const userId = req.user._id;
-  const { bookingId, appFeedback, restroFeedback } = req.body;
+  const { bookingId, appFeedback, restroFeedback, contentLink } = req.body;
   if (!bookingId) {
     resStatus(res, "false", "Booking ID is required.");
     return;
@@ -3642,21 +3668,32 @@ export const Feedback = async (
         "At least one feedback field (app or restaurant) is required."
       );
       return;
+    }
+    else if (contentLink) {
+      resStatus(
+        res,
+        "false",
+        "Content link feedback is not allowed in this endpoint."
+      );
+      return;
+
     } else {
       const newFeedback = new influencerRating({
         influencerId: userId,
         bookingId,
         appFeedback,
         restroFeedback,
-        feedbackStatus:true,
-        feedbackType:'admin',
+        contentLink,
+        feedbackStatus: true,
+        feedbackType: 'admin',
       });
       await newFeedback.save();
-     const updatedBooking = await BookingModel.findByIdAndUpdate(
+      const updatedBooking = await BookingModel.findByIdAndUpdate(
         bookingId,
-        { review: true,
-          status:"past"
-         },
+        {
+          review: true,
+          status: "past"
+        },
         { new: true }
       );
       const resId = updatedBooking?.restoId;
@@ -3673,7 +3710,7 @@ export const Feedback = async (
           restoUser.email,
           offer?.name || "Offer",
           username,
-         "Booking Completed"
+          "Booking Completed"
         );
       }
       for (const playerID of playerIDs) {
@@ -3885,11 +3922,11 @@ export const universalSearch = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { 
-      query, 
-      city, 
-      collaboration_type, 
-      restro_type, 
+    const {
+      query,
+      city,
+      collaboration_type,
+      restro_type,
       offer_type,
       min_amount,
       max_amount,
@@ -3976,9 +4013,9 @@ export const getPaidCollaborations = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { 
-      city, 
-      min_amount, 
+    const {
+      city,
+      min_amount,
       max_amount,
       page = 1,
       limit = 20

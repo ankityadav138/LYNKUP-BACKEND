@@ -73,6 +73,7 @@ cron.schedule("0 0 * * *", updateOfferStatus);
 app.use(errorHandler);
 
 app.get("/", (req: Request, res: Response) => {
+  console.log("Root endpoint hit");
   res.send("SocialMe Backend!");
 });
 

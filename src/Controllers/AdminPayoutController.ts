@@ -4,6 +4,7 @@ import OfferModel from "../Models/offerModal";
 import UserModel from "../Models/UserModel";
 import Wallet from "../Models/Wallet";
 import WalletTransaction from "../Models/WalletTransaction";
+import EarningModel from "../Models/Earning";
 import { resStatusData, resStatus } from "../Responses/Response";
 import { invoiceService } from "../Services/InvoiceService";
 
@@ -24,7 +25,6 @@ export const getAllPendingPayouts = async (
 
     const query: any = {
       status: "accepted",
-      content_status: "accepted",
       $or: [
         { payout_status: { $exists: false } },
         { payout_status: "pending" },
@@ -297,10 +297,10 @@ export const recordPayoutAsAdmin = async (
     }
 
     // Check if content is accepted
-    if (booking.content_status !== "accepted") {
-      resStatus(res, "false", "Content must be accepted before payout");
-      return;
-    }
+    // if (booking.content_status !== "accepted") {
+    //   resStatus(res, "false", "Content must be accepted before payout");
+    //   return;
+    // }
 
     // Check if payout already recorded
     if (booking.payout_status === "paid") {
@@ -313,12 +313,31 @@ export const recordPayoutAsAdmin = async (
     const business = booking.restoId as any;
     const business_id = business._id;
 
-    // Optional: Get business wallet for transaction record (but don't fail if not exists)
-    const wallet = await Wallet.findOne({ userId: business_id });
+    // Get business wallet and deduct the payout amount
+    const wallet = await Wallet.findOne({ user_id: business_id });
+    if (!wallet) {
+      resStatus(res, "false", "Business wallet not found. Cannot process payout.");
+      return;
+    }
 
-    // Note: Manual payout means business has already paid influencer outside the system
-    // We're just recording the fact that payment was made
-    // No need to deduct from wallet as this is a manual record only
+    // Check if sufficient locked balance (payouts must be deducted from locked funds)
+    if (wallet.locked_balance < amount) {
+      resStatus(
+        res,
+        "false",
+        `Insufficient locked balance. Locked: ₹${wallet.locked_balance}, Required: ₹${amount}`
+      );
+      return;
+    }
+
+    // Store balance before deduction for transaction record
+    const balanceBefore = wallet.total_balance;
+
+    // Deduct from locked balance and total balance
+    wallet.locked_balance -= amount;
+    wallet.total_balance -= amount;
+
+    await wallet.save();
 
     // Update booking with payout details
     booking.payout_amount = amount;
@@ -331,28 +350,35 @@ export const recordPayoutAsAdmin = async (
     }
     await booking.save();
 
-    // If wallet exists, create transaction record for tracking
-    if (wallet) {
-      await WalletTransaction.create({
-        wallet_id: wallet._id,
-        user_id: business_id,
-        type: "payout_record",
-        amount: amount,
-        status: "completed",
-        description: `Manual payout recorded: Paid to ${influencer.firstName} ${influencer.lastName || ""} for "${offer.name}"`,
-        reference_type: "booking",
-        reference_id: booking._id,
-        balance_before: wallet.available_balance,
-        balance_after: wallet.available_balance, // No balance change - manual payment
-        metadata: {
-          influencer_id: influencer._id,
-          payout_mode,
-          milestone_achieved,
-          processed_by: admin_id,
-          processor_type: "admin",
-        },
-      });
-    }
+    // Record creator earning
+    await EarningModel.create({
+      userId: influencer._id,
+      amount: amount,
+      method: payout_mode,
+      date: new Date(),
+    });
+
+    // Create wallet transaction record
+    await WalletTransaction.create({
+      wallet_id: wallet._id,
+      user_id: business_id,
+      type: "debit",
+      amount: amount,
+      status: "completed",
+      description: `Payout to ${influencer.firstName} ${influencer.lastName || ""} for "${offer.name}" - Processed by admin`,
+      reference_type: "offer",
+      reference_id: offer._id,
+      balance_before: balanceBefore,
+      balance_after: wallet.total_balance,
+      metadata: {
+        booking_id: booking._id,
+        influencer_id: influencer._id,
+        payout_mode,
+        milestone_achieved,
+        processed_by: admin_id,
+        processor_type: "admin",
+      },
+    });
 
     // Send GST invoice to business email
     if (business && business.email) {
@@ -367,7 +393,7 @@ export const recordPayoutAsAdmin = async (
       );
     }
 
-    resStatusData(res, "success", "Payout recorded successfully by admin", {
+    resStatusData(res, "success", "Payout recorded and deducted from business wallet successfully", {
       booking: {
         _id: booking._id,
         payout_amount: booking.payout_amount,
@@ -388,10 +414,12 @@ export const recordPayoutAsAdmin = async (
           collaboration_type: offer.collaboration_type,
         },
       },
-      wallet: wallet ? {
-        remaining_locked: wallet.locked_balance,
-        available: wallet.available_balance,
-      } : null,
+      wallet: {
+        total_balance: wallet.total_balance,
+        locked_balance: wallet.locked_balance,
+        available_balance: wallet.available_balance,
+        amount_deducted: amount,
+      },
     });
   } catch (error: any) {
     console.error("Error recording payout as admin:", error);

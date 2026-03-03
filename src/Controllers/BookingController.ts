@@ -28,15 +28,19 @@ export const createBooking = async (
       resStatus(res, "false", "All fields are required.");
       return;
     }
+    
     const offerDetails = await OfferModel.findById(offerId);
     if (!offerDetails) {
       resStatus(res, "false", "Offer not found.");
       return;
     }
+
+    console.log("Trying to create the booking",offerDetails)
     const existingUserBooking = await BookingModel.findOne({
       offerId,
       userId, 
     });
+    console.log("Trying Existing booking check",existingUserBooking)
     if (existingUserBooking) {
       resStatus(res, "false", "You have already booked this offer.");
       return;
@@ -1090,6 +1094,7 @@ export const getAllBookings = async (req: any, res: Response): Promise<void> => 
           booking_allergy: 1,
           address: 1,
           reason:1,
+          isRescheduled: 1,
           createdAt: 1,
           userDetails:1,
           offerDetails: {
@@ -1237,6 +1242,7 @@ export const rescheduleBooking = async (
     booking.reschedule_requested_at = new Date();
     booking.previous_date = old_date;
     booking.previous_time = old_time;
+    booking.isRescheduled = true; // Flag to indicate this booking has been rescheduled at least once
     await booking.save();
 
     // Send notification to business
