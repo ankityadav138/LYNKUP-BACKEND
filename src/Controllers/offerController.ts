@@ -3111,7 +3111,8 @@ export const showOfferUser = async (
     const userReach = currentUser?.insights?.reach || 0;
 
     // Build business filter based on location preferences
-    let businessFilter: any = { userType: "business" };
+    // Don't filter by userType - we want all offers regardless of business user type
+    let businessFilter: any = {};
 
     // Optional city/state filtering
     if (city) {
@@ -3121,24 +3122,45 @@ export const showOfferUser = async (
       businessFilter["manual_location.state"] = { $regex: new RegExp(state as string, "i") };
     }
 
-    // If latitude/longitude provided, prioritize nearby businesses (optional sorting, not filtering)
+    console.log("🔍 DEBUG: Building business filter:", businessFilter);
+
+    // Get all unique business IDs from all live offers (don't filter by userType)
+    const allLiveOffers = await OfferModel.find({ 
+      isdeleted: false, 
+      status: "live" 
+    }).select("business_id").lean();
+    
+    console.log("📊 DEBUG: Found", allLiveOffers.length, "live offers total");
+    
+    const allOfferBusinessIds = [...new Set(allLiveOffers.map(o => o.business_id?.toString()))].filter(Boolean);
+    
+    console.log("🏢 DEBUG: Found", allOfferBusinessIds.length, "unique businesses with live offers");
+
+    // Now filter these businesses by location if needed
     let businesses;
     if (latitude && longitude) {
       businesses = await UserModel.find({
+        _id: { $in: allOfferBusinessIds },
         ...businessFilter,
         "location.coordinates": {
           $near: {
             $geometry: { type: "Point", coordinates: [parseFloat(longitude), parseFloat(latitude)] },
-            $maxDistance: 1000000, // 1000km - much larger radius to show more offers
+            $maxDistance: 1000000, // 1000km
           },
         },
-      }).select("_id");
+      }).select("_id").lean();
+      console.log("📍 DEBUG: Found", businesses.length, "businesses after location filter");
     } else {
       // Show all businesses across India when no location provided
-      businesses = await UserModel.find(businessFilter).select("_id");
+      businesses = await UserModel.find({
+        _id: { $in: allOfferBusinessIds },
+        ...businessFilter
+      }).select("_id").lean();
+      console.log("📍 DEBUG: Found", businesses.length, "businesses (no location filter)");
     }
 
-    const businessIds = businesses.map((business) => business._id);
+    const businessIds = businesses.map((business) => business._id.toString());
+    console.log("🔍 DEBUG: Final businessIds count:", businessIds.length);
     const bookedOffers = await BookingModel.find({ userId }).select("offerId");
     const bookedOfferIds = bookedOffers.map((booking) => booking.offerId);
     let dateFilter: any = {};
@@ -3153,7 +3175,7 @@ export const showOfferUser = async (
     const offers = await OfferModel.aggregate([
       {
         $match: {
-          business_id: { $in: businessIds },
+          business_id: { $in: businessIds.map(id => new mongoose.Types.ObjectId(id)) },
           _id: { $nin: bookedOfferIds },
           isdeleted: false,
           status: "live",
@@ -3238,8 +3260,47 @@ export const showOfferUser = async (
         },
       },
       { $unwind: "$userDetails" },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          media: 1,
+          offer_type: 1,
+          offering: 1,
+          details: 1,
+          min_follower: 1,
+          min_reach: 1,
+          offDays: 1,
+          valid: 1,
+          address: 1,
+          timeId: 1,
+          instagram_reel: 1,
+          tags: 1,
+          hashtags: 1,
+          content_delivery: 1,
+          content_guidelines: 1,
+          creator_requirement: 1,
+          collaboration_type: 1,
+          fixed_amount: 1,
+          foodTimings: 1,
+          bookings: 1,
+          acceptedBookings: 1,
+          userDetails: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          max_booking: 1,
+          ending_type: 1,
+          status: 1,
+        },
+      },
       { $sort: { createdAt: -1 } },
     ]);
+    
+    console.log("📊 DEBUG: Found", offers.length, "offers from", businessIds.length, "businesses");
+    if (offers.length > 0) {
+      console.log("📋 Sample Offer Names:", offers.slice(0, 3).map((o: any) => o.name || o.debug_name));
+    }
+    
     if (selectedDate) {
       const selectedDay = new Date(selectedDate).toLocaleString('en-US', { weekday: 'long' });
       const offersWithLock = offers.map((offer: any) => {

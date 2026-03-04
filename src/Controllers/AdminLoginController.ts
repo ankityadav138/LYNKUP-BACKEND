@@ -39,6 +39,7 @@ import { createNotification, sendNotification } from "./NotificationController";
 import { Types } from "mongoose";
 import { Feedback } from "./offerController";
 import OfferModel from "../Models/offerModal";
+import EarningModel from "../Models/Earning";
 export const adminSignup = async (
   req: Request,
   res: Response,
@@ -639,15 +640,32 @@ export const getUserByToken = async (
     });
 
     const updatedUser = await UserModel.findById(userId).select("-password -__v");
+    const earnings = await EarningModel.find({ userId }).lean();
+    const earningTotal = earnings.reduce(
+      (sum, earning) => sum + (typeof earning.amount === "number" ? earning.amount : 0),
+      0
+    );
+    const userWithEarnings = {
+      ...updatedUser?.toObject?.(),
+      ...(updatedUser || {}),
+      earnings,
+      earningTotal,
+    };
+
     if ((updatedUser?.strikeCount ?? 0) >= 3 && !updatedUser?.blocked) {
       const blocked = await UserModel.findByIdAndUpdate(
         userId,
         { blocked: true },
         { new: true }
       ).select("-password -__v");
-      return resStatusData(res, "false", "User is blocked.", blocked);
+      return resStatusData(res, "false", "User is blocked.", {
+        ...blocked?.toObject?.(),
+        ...(blocked || {}),
+        earnings,
+        earningTotal,
+      });
     }
-    return resStatusData(res, "success", "User retrieved successfully.", updatedUser);
+    return resStatusData(res, "success", "User retrieved successfully.", userWithEarnings);
   } catch (err: any) {
     console.error("Instagram token error:", err.response?.data || err.message);
     return resStatus(res, "false", "Failed to update Instagram token.");
@@ -849,6 +867,33 @@ export const getAlluser = async (
       UserModel.countDocuments(query),
     ]);
 
+    const userIds = users.map((user) => user._id);
+    const earnings = userIds.length
+      ? await EarningModel.find({ userId: { $in: userIds } }).lean()
+      : [];
+
+    const earningsByUserId = earnings.reduce((acc: Record<string, any[]>, earning) => {
+      const key = earning.userId.toString();
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(earning);
+      return acc;
+    }, {});
+
+    const usersWithEarnings = users.map((user) => {
+      const userEarnings = earningsByUserId[user._id.toString()] || [];
+      const earningTotal = userEarnings.reduce(
+        (sum, earning) => sum + (typeof earning.amount === "number" ? earning.amount : 0),
+        0
+      );
+      return {
+        ...user,
+        earnings: userEarnings,
+        earningTotal,
+      };
+    });
+
     console.log('📋 Fetched users count:', users.length);
     if (users.length > 0) {
       console.log('💰 Sample user manualPay:', users[0]?.manualPay);
@@ -858,7 +903,7 @@ export const getAlluser = async (
       res.status(200).json({
         status: "success",
         message: "User details",
-        data: users,
+        data: usersWithEarnings,
         pagination: {
           totalItems: total,
           currentPage: page,
