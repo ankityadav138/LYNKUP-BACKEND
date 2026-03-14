@@ -2271,9 +2271,9 @@ export const createOfferByBusiness = async (
 
   // Calculate total lock amount
   let totalLockAmount = MINIMUM_OFFER_AMOUNT; // ₹20,000 security deposit
-  if (collaboration_type === "paid" && fixed_amount) {
-    totalLockAmount += parseFloat(fixed_amount);
-  }
+  // if (collaboration_type === "paid" && fixed_amount) {
+  //   totalLockAmount += parseFloat(fixed_amount);
+  // }
 
   console.log("💰 Total Lock Amount:", totalLockAmount);
 

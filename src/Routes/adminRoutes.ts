@@ -20,6 +20,7 @@ import {
   recordPayoutAsAdmin,
   getPayoutDashboard,
   generateGSTInvoice,
+  downloadPayoutInvoicePDF,
 } from "../Controllers/AdminPayoutController";
 import { recordEarning, getUserEarnings } from '../Controllers/EarningController';
 import { triggerWithdrawalEligibilityUpdate } from "../Cron/SubscriptionCron";
@@ -111,6 +112,7 @@ export const adminRoutes = (app: Express): void => {
   app.post("/admin/payouts/record", adminMiddleware, errCatch(recordPayoutAsAdmin));
   app.get("/admin/payouts/dashboard", adminMiddleware, errCatch(getPayoutDashboard));
   app.post("/admin/payouts/generate-invoice/:booking_id", adminMiddleware, errCatch(generateGSTInvoice));
+  app.get("/admin/payouts/download-invoice/:booking_id", adminMiddleware, errCatch(downloadPayoutInvoicePDF));
 
   // PHASE: Subscription Notifications (Admin triggers)
   app.post("/admin/notifications/unsubscribed-users", adminMiddleware, async (req, res) => {

@@ -7,6 +7,8 @@ import WalletTransaction from "../Models/WalletTransaction";
 import EarningModel from "../Models/Earning";
 import { resStatusData, resStatus } from "../Responses/Response";
 import { invoiceService } from "../Services/InvoiceService";
+import * as fs from "fs";
+import * as path from "path";
 
 /**
  * Admin Payout Management Controller
@@ -380,16 +382,51 @@ export const recordPayoutAsAdmin = async (
       },
     });
 
-    // Send GST invoice to business email
+    // Send GST invoice to business and admin in parallel
+    const adminEmail = process.env.ADMIN_EMAIL || "admin@lynkup.com";
+    const gstNumber = process.env.GST_NUMBER || "";
+    const companyName = process.env.COMPANY_NAME || "LYNKUP";
+
+    const emailPromises = [];
+
     if (business && business.email) {
-      await invoiceService.sendPayoutGSTInvoice(
-        business.email,
-        business.firstName + (business.lastName ? ` ${business.lastName}` : ""),
-        amount,
-        `${influencer.firstName} ${influencer.lastName || ""}`,
-        offer.name,
-        booking._id.toString(),
-        new Date()
+      emailPromises.push(
+        invoiceService.sendPayoutGSTInvoice(
+          business.email,
+          business.firstName + (business.lastName ? ` ${business.lastName}` : ""),
+          amount,
+          `${influencer.firstName} ${influencer.lastName || ""}`,
+          offer.name,
+          booking._id.toString(),
+          booking.payout_date,
+          gstNumber,
+          companyName,
+          booking.payout_mode
+        )
+      );
+    }
+
+    if (adminEmail && adminEmail !== "admin@lynkup.com") {
+      emailPromises.push(
+        invoiceService.sendPayoutGSTInvoice(
+          adminEmail,
+          "Admin",
+          amount,
+          `${influencer.firstName} ${influencer.lastName || ""}`,
+          offer.name,
+          booking._id.toString(),
+          booking.payout_date,
+          gstNumber,
+          companyName,
+          booking.payout_mode,
+          `Payout processed by admin for business: ${business.firstName} ${business.lastName || ""}`
+        )
+      );
+    }
+
+    if (emailPromises.length > 0) {
+      await Promise.all(emailPromises).catch((err) =>
+        console.error("Error sending invoices:", err)
       );
     }
 
@@ -632,27 +669,148 @@ export const generateGSTInvoice = async (
       return;
     }
 
-    // Send GST invoice
-    const invoiceSent = await invoiceService.sendPayoutGSTInvoice(
-      business.email,
-      business.firstName + (business.lastName ? ` ${business.lastName}` : ""),
-      booking.payout_amount,
-      `${influencer.firstName} ${influencer.lastName || ""}`,
-      offer.name,
-      booking._id.toString(),
-      booking.payout_date
-    );
+    // Send GST invoice to business and admin in parallel
+    const adminEmail = process.env.ADMIN_EMAIL || "admin@lynkup.com";
+    const gstNumber = process.env.GST_NUMBER || "";
+    const companyName = process.env.COMPANY_NAME || "LYNKUP";
 
-    if (invoiceSent) {
-      resStatusData(res, "success", "GST invoice sent successfully", {
-        sent_to: business.email,
-        amount: booking.payout_amount,
-      });
+    const emailPromises = [];
+    const sentTo = [];
+
+    if (business && business.email) {
+      emailPromises.push(
+        invoiceService.sendPayoutGSTInvoice(
+          business.email,
+          business.firstName + (business.lastName ? ` ${business.lastName}` : ""),
+          booking.payout_amount,
+          `${influencer.firstName} ${influencer.lastName || ""}`,
+          offer.name,
+          booking._id.toString(),
+          booking.payout_date,
+          gstNumber,
+          companyName,
+          booking.payout_mode
+        )
+      );
+      sentTo.push(business.email);
+    }
+
+    if (adminEmail && adminEmail !== "admin@lynkup.com") {
+      emailPromises.push(
+        invoiceService.sendPayoutGSTInvoice(
+          adminEmail,
+          "Admin",
+          booking.payout_amount,
+          `${influencer.firstName} ${influencer.lastName || ""}`,
+          offer.name,
+          booking._id.toString(),
+          booking.payout_date,
+          gstNumber,
+          companyName,
+          booking.payout_mode,
+          `Invoice for payout processed for business: ${business.firstName} ${business.lastName || ""}`
+        )
+      );
+      sentTo.push(adminEmail);
+    }
+
+    if (emailPromises.length > 0) {
+      const results = await Promise.allSettled(emailPromises);
+      const invoiceSent = results.every((r) => r.status === "fulfilled");
+
+      if (invoiceSent) {
+        resStatusData(res, "success", "GST invoice sent successfully", {
+          sent_to: sentTo,
+          amount: booking.payout_amount,
+        });
+      } else {
+        resStatus(res, "false", "Failed to send invoice to some recipients");
+      }
     } else {
-      resStatus(res, "false", "Failed to send invoice");
+      resStatus(res, "false", "No recipients configured for invoice");
     }
   } catch (error: any) {
     console.error("Error generating GST invoice:", error);
+    resStatusData(res, "error", error.message, null);
+  }
+};
+
+/**
+ * Download payout invoice as PDF
+ */
+export const downloadPayoutInvoicePDF = async (
+  req: Request | any,
+  res: Response
+): Promise<void> => {
+  try {
+    const { booking_id } = req.params;
+
+    const booking = await BookingModel.findById(booking_id)
+      .populate("userId")
+      .populate("offerId")
+      .populate("restoId");
+
+    if (!booking) {
+      resStatus(res, "false", "Booking not found");
+      return;
+    }
+
+    if (booking.payout_status !== "paid") {
+      resStatus(res, "false", "Invoice available only for paid bookings");
+      return;
+    }
+
+    const business = booking.restoId as any;
+    const influencer = booking.userId as any;
+    const offer = booking.offerId as any;
+    const gstNumber = process.env.GST_NUMBER || "N/A";
+    const companyName = process.env.COMPANY_NAME || "LYNKUP";
+
+    // Validate populated fields
+    if (!business || !influencer || !offer) {
+      resStatus(res, "false", "Missing booking relationships - business, creator, or offer not found");
+      return;
+    }
+
+    // Validate required fields
+    if (!booking.payout_amount || !booking.payout_date || !booking.payout_mode) {
+      resStatus(res, "false", "Incomplete payout information for PDF generation");
+      return;
+    }
+
+    // Generate PDF using invoiceService
+    const pdfPath = await invoiceService.generatePayoutInvoicePDF(
+      {
+        business_name: `${business.firstName} ${business.lastName || ""}`,
+        business_email: business.email,
+        influencer_name: `${influencer.firstName} ${influencer.lastName || ""}`,
+        offer_name: offer.name,
+        amount: booking.payout_amount,
+        payout_date: booking.payout_date,
+        booking_id: booking._id.toString(),
+        gst_number: gstNumber,
+        company_name: companyName,
+        payout_mode: booking.payout_mode,
+        collaboration_type: offer.collaboration_type || "Service",
+      }
+    );
+
+    // Send file as download
+    res.download(pdfPath, `Invoice_${booking._id}.pdf`, (err) => {
+      if (err) {
+        console.error("Error downloading file:", err);
+      }
+      // Optional: delete file after download
+      try {
+        if (fs.existsSync(pdfPath)) {
+          fs.unlinkSync(pdfPath);
+        }
+      } catch (e) {
+        console.error("Error deleting temp file:", e);
+      }
+    });
+  } catch (error: any) {
+    console.error("Error downloading invoice PDF:", error);
     resStatusData(res, "error", error.message, null);
   }
 };

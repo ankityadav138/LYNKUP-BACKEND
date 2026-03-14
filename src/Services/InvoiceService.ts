@@ -2,6 +2,17 @@ import nodemailer from "nodemailer";
 import { format, addDays } from "date-fns";
 import mg from "nodemailer-mailgun-transport";
 import PDFDocument from "pdfkit";
+import pdfMake from "pdfmake/build/pdfmake";
+import * as fs from "fs";
+import * as path from "path";
+
+// Setup fonts for pdfmake
+try {
+  const pdfFonts = require("pdfmake/build/vfs_fonts");
+  (pdfMake as any).vfs = pdfFonts.pdfMake.vfs;
+} catch (error) {
+  console.warn("Warning: pdfmake fonts not loaded, using default fonts");
+}
 
 interface InvoiceDetails {
   invoiceId: string;
@@ -1444,7 +1455,11 @@ export class InvoiceService {
     creatorName: string,
     offerName: string,
     bookingId: string,
-    payoutDate: Date
+    payoutDate: Date,
+    gstNumber?: string,
+    companyName?: string,
+    payoutMode?: string,
+    notes?: string
   ): Promise<boolean> {
     try {
       if (!this.transporter) {
@@ -1505,6 +1520,16 @@ export class InvoiceService {
               margin: 0;
               font-size: 28px;
               font-weight: 600;
+            }
+            .company-info {
+              background: #f0f0f0;
+              padding: 15px;
+              text-align: center;
+              border-bottom: 1px solid #ddd;
+              font-size: 12px;
+            }
+            .company-info p {
+              margin: 3px 0;
             }
             .content {
               padding: 30px;
@@ -1574,12 +1599,22 @@ export class InvoiceService {
               margin: 20px 0;
               border-left: 4px solid #2196f3;
             }
+            .gst-info strong {
+              display: block;
+              margin-bottom: 8px;
+            }
+            .gst-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 4px 0;
+              font-size: 14px;
+            }
             .footer {
               background: #f8f9fa;
               padding: 20px;
               text-align: center;
               color: #6c757d;
-              font-size: 14px;
+              font-size: 12px;
               border-top: 1px solid #dee2e6;
             }
           </style>
@@ -1590,6 +1625,13 @@ export class InvoiceService {
               <h1>PAYOUT DEDUCTION INVOICE</h1>
               <p style="margin: 5px 0 0 0; opacity: 0.9;">GST Invoice for Creator Payment</p>
             </div>
+            
+            ${companyName || gstNumber ? `
+            <div class="company-info">
+              ${companyName ? `<p><strong>${companyName}</strong></p>` : ''}
+              ${gstNumber ? `<p>GST Number: ${gstNumber}</p>` : ''}
+            </div>
+            ` : ''}
             
             <div class="content">
               <div class="invoice-badge">
@@ -1617,6 +1659,12 @@ export class InvoiceService {
                   <span class="detail-label">Payout Date:</span>
                   <span class="detail-value">${format(new Date(payoutDate), "PPP")}</span>
                 </div>
+                ${payoutMode ? `
+                <div class="detail-row">
+                  <span class="detail-label">Payout Mode:</span>
+                  <span class="detail-value">${payoutMode}</span>
+                </div>
+                ` : ''}
               </div>
 
               <div class="amount-section">
@@ -1636,18 +1684,25 @@ export class InvoiceService {
               </div>
 
               <div class="gst-info">
-                <strong>GST Breakdown:</strong><br>
-                CGST (9%): ${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(gstAmount / 2)}<br>
-                SGST (9%): ${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(gstAmount / 2)}
+                <strong>GST Breakdown:</strong>
+                <div class="gst-row">
+                  <span>CGST (9%):</span>
+                  <span>${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(gstAmount / 2)}</span>
+                </div>
+                <div class="gst-row">
+                  <span>SGST (9%):</span>
+                  <span>${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(gstAmount / 2)}</span>
+                </div>
               </div>
 
+              ${notes ? `<p><strong>Additional Notes:</strong><br>${notes}</p>` : ''}
               <p><strong>Note:</strong> This amount has been deducted from your locked wallet balance. The creator has been paid outside the platform as per your manual payout record.</p>
 
               <p style="margin-top: 30px;">If you have any questions regarding this transaction, please contact our support team.</p>
             </div>
 
             <div class="footer">
-              <p style="margin: 0;">Thank you for using LYNKUP</p>
+              <p style="margin: 0;">Thank you for using ${companyName || 'LYNKUP'}</p>
               <p style="margin: 5px 0 0 0;">This is an automated invoice. Please do not reply to this email.</p>
             </div>
           </div>
@@ -1677,6 +1732,201 @@ export class InvoiceService {
         `[Invoice Service] Failed to send payout GST invoice: ${error.message}`
       );
       return false;
+    }
+  }
+
+  /**
+   * Generate payout invoice as PDF with professional formatting using PDFKit
+   */
+  async generatePayoutInvoicePDF(invoiceData: {
+    business_name: string;
+    business_email: string;
+    influencer_name: string;
+    offer_name: string;
+    amount: number;
+    payout_date: Date;
+    booking_id: string;
+    gst_number: string;
+    company_name: string;
+    payout_mode: string;
+    collaboration_type?: string;
+  }): Promise<string> {
+    try {
+      const gstRate = parseFloat(process.env.GST_RATE || "18");
+      const subtotal = invoiceData.amount;
+      const gstAmount = (subtotal * gstRate) / 100;
+      const cgstAmount = gstAmount / 2;
+      const sgstAmount = gstAmount / 2;
+      const totalAmount = subtotal + gstAmount;
+
+      const doc = new PDFDocument({ margin: 50 });
+      const fileName = `Invoice_${invoiceData.booking_id}.pdf`;
+      const filePath = path.join(process.cwd(), "temp", fileName);
+
+      // Ensure temp directory exists
+      const tempDir = path.join(process.cwd(), "temp");
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      const stream = fs.createWriteStream(filePath);
+      doc.pipe(stream);
+
+      // ===== HEADER with purple/blue background =====
+      doc.rect(0, 0, 612, 100).fill("#667eea");
+      
+      // Invoice title
+      doc.fontSize(32).fillColor("#ffffff").font("Helvetica-Bold")
+        .text("INVOICE", 50, 35);
+      
+      // Company name on right
+      doc.fontSize(16).fillColor("#ffffff").font("Helvetica-Bold")
+        .text("LYNKUP", 400, 45, { align: "right", width: 162 });
+
+      // ===== Invoice Details Section =====
+      doc.fillColor("#333333");
+      
+      // Left side - Invoice info
+      doc.fontSize(10).font("Helvetica-Bold").fillColor("#666666")
+        .text("Invoice No.", 50, 130);
+      doc.fontSize(12).font("Helvetica-Bold").fillColor("#333333")
+        .text(`INV-${invoiceData.booking_id.slice(-6).toUpperCase()}`, 50, 145);
+      
+      doc.fontSize(10).font("Helvetica-Bold").fillColor("#666666")
+        .text("Invoice Date", 50, 170);
+      doc.fontSize(11).font("Helvetica").fillColor("#333333")
+        .text(format(new Date(invoiceData.payout_date), "dd MMM yyyy"), 50, 185);
+
+      // Right side - Status
+      doc.fontSize(10).font("Helvetica-Bold").fillColor("#666666")
+        .text("Due Date", 450, 130, { align: "right", width: 112 });
+      doc.fontSize(11).font("Helvetica").fillColor("#333333")
+        .text(format(new Date(invoiceData.payout_date), "dd MMM yyyy"), 450, 145, { align: "right", width: 112 });
+      
+      doc.fontSize(10).font("Helvetica-Bold").fillColor("#666666")
+        .text("Status", 450, 170, { align: "right", width: 112 });
+      doc.fontSize(11).font("Helvetica-Bold").fillColor("#28a745")
+        .text("PAID", 450, 185, { align: "right", width: 112 });
+
+      // ===== FROM and PAID TO Section =====
+      // FROM
+      doc.fontSize(10).font("Helvetica-Bold").fillColor("#667eea")
+        .text("FROM", 50, 230);
+      doc.fontSize(13).font("Helvetica-Bold").fillColor("#333333")
+        .text(invoiceData.company_name || "LYNKUP", 50, 245);
+      doc.fontSize(9).font("Helvetica").fillColor("#666666")
+        .text(`GST IN: ${invoiceData.gst_number || process.env.ADMIN_GSTIN || "N/A"}`, 50, 262);
+      doc.text("Professional Services", 50, 275);
+      doc.text("Payout & Collaboration Management", 50, 288);
+
+      // PAID TO
+      doc.fontSize(10).font("Helvetica-Bold").fillColor("#667eea")
+        .text("PAID TO", 320, 230);
+      doc.fontSize(13).font("Helvetica-Bold").fillColor("#333333")
+        .text(invoiceData.business_name, 320, 245);
+      doc.fontSize(9).font("Helvetica").fillColor("#666666")
+        .text(invoiceData.business_email, 320, 262);
+      doc.fontSize(9).font("Helvetica-Oblique").fillColor("#666666")
+        .text(`Creator: ${invoiceData.influencer_name}`, 320, 288);
+
+      // ===== Items Table =====
+      const tableTop = 330;
+      
+      // Table header
+      doc.rect(50, tableTop, 512, 30).fill("#667eea");
+      doc.fontSize(10).font("Helvetica-Bold").fillColor("#ffffff");
+      doc.text("Description", 60, tableTop + 10);
+      doc.text("Rate", 350, tableTop + 10, { width: 70, align: "right" });
+      doc.text("Qty", 420, tableTop + 10, { width: 40, align: "center" });
+      doc.text("Total", 470, tableTop + 10, { width: 80, align: "right" });
+
+      // Table row
+      const rowY = tableTop + 35;
+      doc.rect(50, rowY, 512, 30).fill("#ffffff");
+      doc.fontSize(10).font("Helvetica").fillColor("#333333");
+      doc.text(`Payout for ${invoiceData.offer_name || "Collaboration"}`, 60, rowY + 10, { width: 280 });
+      doc.text(`Rs.${subtotal.toLocaleString("en-IN")}`, 350, rowY + 10, { width: 70, align: "right" });
+      doc.text("1", 420, rowY + 10, { width: 40, align: "center" });
+      doc.font("Helvetica-Bold").text(`Rs.${subtotal.toLocaleString("en-IN")}`, 470, rowY + 10, { width: 80, align: "right" });
+
+      // Collaboration type row
+      const typeRowY = rowY + 30;
+      doc.rect(50, typeRowY, 512, 25).fill("#f8f9fa");
+      doc.fontSize(9).font("Helvetica-Oblique").fillColor("#666666")
+        .text(`Collaboration Type: ${invoiceData.collaboration_type || "Service"}`, 60, typeRowY + 8);
+
+      // ===== Amount Summary =====
+      const summaryTop = typeRowY + 50;
+      
+      // Subtotal
+      doc.fontSize(10).font("Helvetica").fillColor("#333333")
+        .text("Subtotal", 400, summaryTop, { width: 80, align: "right" });
+      doc.text(`Rs.${subtotal.toLocaleString("en-IN")}`, 490, summaryTop, { width: 70, align: "right" });
+
+      // GST
+      doc.rect(380, summaryTop + 20, 182, 20).fill("#f8f9fa");
+      doc.fillColor("#333333")
+        .text(`GST @ ${gstRate}%`, 400, summaryTop + 25, { width: 80, align: "right" });
+      doc.text(`Rs.${gstAmount.toLocaleString("en-IN")}`, 490, summaryTop + 25, { width: 70, align: "right" });
+
+      // CGST
+      doc.rect(380, summaryTop + 40, 182, 18).fill("#f8f9fa");
+      doc.fontSize(9).fillColor("#666666")
+        .text("CGST (9%)", 400, summaryTop + 44, { width: 80, align: "right" });
+      doc.text(`Rs.${cgstAmount.toLocaleString("en-IN")}`, 490, summaryTop + 44, { width: 70, align: "right" });
+
+      // SGST
+      doc.rect(380, summaryTop + 58, 182, 18).fill("#f8f9fa");
+      doc.fillColor("#666666")
+        .text("SGST (9%)", 400, summaryTop + 62, { width: 80, align: "right" });
+      doc.text(`Rs.${sgstAmount.toLocaleString("en-IN")}`, 490, summaryTop + 62, { width: 70, align: "right" });
+
+      // Total
+      doc.rect(380, summaryTop + 80, 182, 30).fill("#667eea");
+      doc.fontSize(12).font("Helvetica-Bold").fillColor("#ffffff")
+        .text("TOTAL", 400, summaryTop + 88, { width: 80, align: "right" });
+      doc.text(`Rs.${totalAmount.toLocaleString("en-IN")}`, 490, summaryTop + 88, { width: 70, align: "right" });
+
+      // ===== Payment Details =====
+      const paymentTop = summaryTop + 140;
+      
+      doc.fontSize(11).font("Helvetica-Bold").fillColor("#667eea")
+        .text("PAYMENT DETAILS", 50, paymentTop);
+
+      const detailY = paymentTop + 20;
+      doc.fontSize(10).font("Helvetica").fillColor("#333333");
+      
+      // Payment details table
+      doc.font("Helvetica-Bold").text("Payout Mode:", 50, detailY);
+      doc.font("Helvetica").text(invoiceData.payout_mode || "UPI", 150, detailY);
+      
+      doc.font("Helvetica-Bold").text("Booking ID:", 50, detailY + 20);
+      doc.fontSize(9).font("Helvetica").text(invoiceData.booking_id, 150, detailY + 20);
+      
+      doc.fontSize(10).font("Helvetica-Bold").text("Payout Date:", 50, detailY + 40);
+      doc.font("Helvetica").text(format(new Date(invoiceData.payout_date), "dd MMM yyyy"), 150, detailY + 40);
+      
+      doc.font("Helvetica-Bold").text("Generated:", 50, detailY + 60);
+      doc.font("Helvetica").text(format(new Date(), "dd MMM yyyy, HH:mm a"), 150, detailY + 60);
+
+      // ===== Terms & Conditions =====
+      doc.fontSize(8).font("Helvetica-Oblique").fillColor("#999999")
+        .text(
+          "Terms & Conditions: This is a payout invoice from LYNKUP. Payment has been processed as per collaboration agreement. GST as per applicable rates has been calculated and included.",
+          50, 700, { width: 512 }
+        );
+
+      doc.end();
+
+      return new Promise((resolve, reject) => {
+        stream.on("finish", () => {
+          resolve(filePath);
+        });
+        stream.on("error", reject);
+      });
+    } catch (error: any) {
+      console.error("Error generating PDF:", error);
+      throw error;
     }
   }
 }

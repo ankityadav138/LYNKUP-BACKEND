@@ -42,9 +42,6 @@ const walletSchema = new mongoose.Schema(
   }
 );
 
-// Index for faster queries
-walletSchema.index({ user_id: 1 });
-
 // Method to check if sufficient balance is available
 walletSchema.methods.hasSufficientBalance = function (amount: number) {
   return this.available_balance >= amount;
