@@ -2007,6 +2007,7 @@ import WalletTransaction from "../Models/WalletTransaction";
 import { invoiceService } from "../Services/InvoiceService";
 
 const MINIMUM_OFFER_AMOUNT = 20000;
+const PLATFORM_COMMISSION_RATE = 0.15; // 15% platform commission on paid collaborations
 export const createOffer = async (
   req: Request | any,
   res: Response
@@ -2143,10 +2144,6 @@ export const createOfferByBusiness = async (
   req: Request | any,
   res: Response
 ): Promise<void> => {
-  console.log("📥 CREATE OFFER REQUEST RECEIVED");
-  console.log("👤 User ID:", req.user?._id);
-  console.log("📦 Request Body:", JSON.stringify(req.body, null, 2));
-  console.log("📁 Files:", req.files?.length || 0, "files");
 
   const business_id = req.user._id;
   const {
@@ -2173,16 +2170,7 @@ export const createOfferByBusiness = async (
     collaboration_type = "milestone",
     fixed_amount,
   } = req.body;
-  console.log("usertype finding:", req.user.userType);
 
-
-  console.log("✅ Extracted Data:", {
-    name,
-    offer_type,
-    collaboration_type,
-    fixed_amount,
-    address_count: address ? (typeof address === 'string' ? 'string' : 'object') : 'none'
-  });
 
   // Get wallet info from middleware (balance already checked)
   const walletInfo = req.walletInfo;
@@ -2194,9 +2182,8 @@ export const createOfferByBusiness = async (
     walletId: wallet?._id
   });
 
-  // ALWAYS refetch wallet to ensure we have the latest data
-  console.log("🔄 Refetching wallet from database for latest data...");
   wallet = await Wallet.findOne({ user_id: business_id });
+  console.log("Latest Wallet data,",wallet)
 
   // Create wallet if doesn't exist
   if (!wallet) {
@@ -2269,6 +2256,12 @@ export const createOfferByBusiness = async (
 
   console.log("✅ Collaboration validation passed");
 
+  // Commission: business enters full amount, creator gets 85%, platform keeps 15%
+  const originalFixedAmount = collaboration_type === "paid" ? parseFloat(fixed_amount) : 0;
+  const netFixedAmount = collaboration_type === "paid"
+    ? Math.round(originalFixedAmount * (1 - PLATFORM_COMMISSION_RATE))
+    : 0;
+
   // Calculate total lock amount
   let totalLockAmount = MINIMUM_OFFER_AMOUNT; // ₹20,000 security deposit
   // if (collaboration_type === "paid" && fixed_amount) {
@@ -2321,21 +2314,11 @@ export const createOfferByBusiness = async (
     try {
       // Only lock funds for non-admin users
       if (req.user.userType !== "admin") {
-        console.log("🔒 Attempting to lock amount:", totalLockAmount);
-        console.log("💰 Wallet balance before lock:", {
-          total: wallet.total_balance,
-          available: wallet.available_balance,
-          locked: wallet.locked_balance
-        });
+      
 
         const updatedWallet = await wallet.lockAmount(totalLockAmount);
 
-        console.log("✅ Amount locked successfully");
-        console.log("💰 Wallet balance after lock:", {
-          total: updatedWallet.total_balance,
-          available: updatedWallet.available_balance,
-          locked: updatedWallet.locked_balance
-        });
+       
 
         // Double-check: Refetch wallet from DB to confirm save
         const walletCheck = await Wallet.findById(wallet._id);
@@ -2384,7 +2367,8 @@ export const createOfferByBusiness = async (
         },
         ending_type,
         collaboration_type: collaboration_type || "milestone",
-        fixed_amount: collaboration_type === "paid" ? parseFloat(fixed_amount) : 0,
+        fixed_amount: netFixedAmount,               // post-commission (₹850 on ₹1000) — shown to all
+        original_fixed_amount: originalFixedAmount,  // business's original entry (₹1000) — admin ref
         locked_amount: totalLockAmount,
         withdrawal_eligibility_date: withdrawalDate,
         is_eligible_for_withdrawal: false,
@@ -2400,8 +2384,8 @@ export const createOfferByBusiness = async (
           amount: totalLockAmount,
           status: "completed",
           description: collaboration_type === "paid"
-            ? `Locked for paid collab: ${name} (₹${MINIMUM_OFFER_AMOUNT.toLocaleString()} security + ₹${fixed_amount.toLocaleString()} payment)`
-            : `Amount locked for offer: ${name}`,
+            ? `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for paid collaboration: ${name} (Creator payout: ₹${netFixedAmount.toLocaleString("en-IN")} after 15% platform fee)`
+            : `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for milestone collaboration: ${name}`,
           reference_type: "offer",
           reference_id: offer._id,
           balance_before: wallet.available_balance + totalLockAmount,
@@ -2411,21 +2395,13 @@ export const createOfferByBusiness = async (
         // Get user details and send invoice
         const user = await UserModel.findById(business_id);
         if (user && user.email) {
-          const gstAmount = collaboration_type === "paid"
-            ? Math.round((parseFloat(fixed_amount) * 18) / 100)
-            : 0;
-
           invoiceService.sendWalletDeductionInvoice({
             transactionId: transaction._id.toString(),
             userName: `${user.firstName} ${user.lastName || ""}`.trim(),
             userEmail: user.email,
             amount: totalLockAmount,
-            purpose: collaboration_type === "paid"
-              ? "Paid Collaboration - Offer Creation"
-              : "Offer Security Deposit",
-            description: collaboration_type === "paid"
-              ? `Security deposit ₹${MINIMUM_OFFER_AMOUNT.toLocaleString()} + Creator payment ₹${fixed_amount.toLocaleString()} (GST 18% = ₹${gstAmount.toLocaleString()})`
-              : `Security deposit locked for creating offer: ${name}. Will be released after 30 days.`,
+            purpose: "Offer Security Deposit",
+            description: `₹${totalLockAmount.toLocaleString("en-IN")} has been deducted from your wallet for offer: ${name}.`,
             offerId: (offer._id as any).toString(),
             offerName: name,
             remainingBalance: wallet.available_balance,
@@ -2434,12 +2410,7 @@ export const createOfferByBusiness = async (
         }
       }
 
-      console.log("✅ Offer created successfully (days mode):", offer._id);
-      console.log("💰 Updated Wallet Balance:", {
-        total: wallet.total_balance,
-        locked: wallet.locked_balance,
-        available: wallet.available_balance
-      });
+   
 
       resStatusData(res, "success", "Offer created successfully by business", {
         offer,
@@ -2460,29 +2431,9 @@ export const createOfferByBusiness = async (
     try {
       // Only lock funds for non-admin users
       if (req.user.userType !== "admin") {
-        console.log("🔒 Attempting to lock amount (booking mode):", totalLockAmount);
-        console.log("💰 Wallet balance before lock:", {
-          total: wallet.total_balance,
-          available: wallet.available_balance,
-          locked: wallet.locked_balance
-        });
-
         const updatedWallet = await wallet.lockAmount(totalLockAmount);
-
-        console.log("✅ Amount locked successfully (booking mode)");
-        console.log("💰 Wallet balance after lock:", {
-          total: updatedWallet.total_balance,
-          available: updatedWallet.available_balance,
-          locked: updatedWallet.locked_balance
-        });
-
         // Double-check: Refetch wallet from DB to confirm save
-        const walletCheck = await Wallet.findById(wallet._id);
-        console.log("🔍 Wallet reloaded from DB:", {
-          total: walletCheck?.total_balance,
-          available: walletCheck?.available_balance,
-          locked: walletCheck?.locked_balance
-        });
+        const walletCheck = await Wallet.findById(wallet._id); 
       } else {
         console.log("⏭️ Skipping wallet lock for admin user (booking mode)");
       }
@@ -2519,7 +2470,8 @@ export const createOfferByBusiness = async (
         min_reach,
         ending_type,
         collaboration_type: collaboration_type || "milestone",
-        fixed_amount: collaboration_type === "paid" ? parseFloat(fixed_amount) : 0,
+        fixed_amount: netFixedAmount,               // post-commission (₹850 on ₹1000) — shown to all
+        original_fixed_amount: originalFixedAmount,  // business's original entry (₹1000) — admin ref
         locked_amount: totalLockAmount,
         withdrawal_eligibility_date: withdrawalDate,
         is_eligible_for_withdrawal: false,
@@ -2529,10 +2481,10 @@ export const createOfferByBusiness = async (
       // Create wallet transaction record (only for non-admin)
       if (req.user.userType !== "admin") {
         const transactionDescription = collaboration_type === "paid"
-          ? `Locked for paid collaboration offer: ${name} (₹20,000 security + ₹${fixed_amount} payment)`
-          : `Locked for milestone-based offer: ${name}`;
+          ? `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for paid collaboration: ${name} (Creator payout: ₹${netFixedAmount.toLocaleString("en-IN")} after 15% platform fee)`
+          : `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for milestone collaboration: ${name}`;
 
-        await WalletTransaction.create({
+        const transaction = await WalletTransaction.create({
           wallet_id: wallet._id,
           user_id: business_id,
           type: "lock",
@@ -2544,14 +2496,26 @@ export const createOfferByBusiness = async (
           balance_before: wallet.available_balance + totalLockAmount,
           balance_after: wallet.available_balance,
         });
+
+        // Send invoice email
+        const user = await UserModel.findById(business_id);
+        if (user && user.email) {
+          invoiceService.sendWalletDeductionInvoice({
+            transactionId: transaction._id.toString(),
+            userName: `${user.firstName} ${user.lastName || ""}`.trim(),
+            userEmail: user.email,
+            amount: totalLockAmount,
+            purpose: "Offer Security Deposit",
+            description: `₹${totalLockAmount.toLocaleString("en-IN")} has been deducted from your wallet for offer: ${name}.`,
+            offerId: (offer._id as any).toString(),
+            offerName: name,
+            remainingBalance: wallet.available_balance,
+            company: "LYNKUP",
+          }).catch(err => console.error("Failed to send invoice:", err));
+        }
       }
 
-      console.log("✅ Offer created successfully (booking mode):", offer._id);
-      console.log("💰 Final Wallet Balance:", {
-        total: wallet.total_balance,
-        locked: wallet.locked_balance,
-        available: wallet.available_balance
-      });
+     
 
       resStatusData(res, "success", "Offer created successfully by business", {
         offer,
@@ -2632,7 +2596,15 @@ export const showOfferAdmin = async (
       },
       {
         $addFields: {
-          noOfBookings: { $size: "$bookings" }, // Count number of bookings per offer
+          noOfBookings: { $size: "$bookings" },
+          // Business/admin always see the original amount they entered (before 15% commission)
+          fixed_amount: {
+            $cond: {
+              if: { $eq: ["$collaboration_type", "paid"] },
+              then: "$original_fixed_amount",
+              else: "$fixed_amount",
+            },
+          },
         },
       },
       {
@@ -2670,6 +2642,7 @@ export const showOfferAdmin = async (
           min_follower: 1,
           collaboration_type: 1,
           fixed_amount: 1,
+          original_fixed_amount: 1,
           locked_amount: 1,
           foodTimings: 1,
           userDetails: {
@@ -3692,6 +3665,9 @@ export const showOfferByID = async (
           hashtags: 1,
           content_delivery: 1,
           content_guidelines: 1,
+          collaboration_type: 1,
+          fixed_amount: 1,
+          original_fixed_amount: 1,
           foodTimings: 1,
         },
       },
@@ -3699,9 +3675,15 @@ export const showOfferByID = async (
     if (!offerData.length) {
       resStatus(res, "false", "No offer found with the provided ID.");
     }
-    const response = {
-      offer: offerData[0],
-    };
+    const offer = offerData[0];
+    // Business/admin see the original entered amount; creators see the net post-commission amount
+    if (offer && offer.collaboration_type === "paid") {
+      const isBusinessView = req.user?.userType === "business" || req.user?.userType === "admin";
+      if (isBusinessView) {
+        offer.fixed_amount = offer.original_fixed_amount;
+      }
+    }
+    const response = { offer };
     resStatusData(res, "success", "Offer retrieved successfully.", response);
   } catch (error) {
     console.error("Error fetching offer:", error);

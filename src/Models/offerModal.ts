@@ -50,7 +50,8 @@ interface OfferInterface extends Document {
   
   // New Fields for Paid Collaborations
   collaboration_type?: "milestone" | "paid";
-  fixed_amount?: number;
+  fixed_amount?: number;         // Post-commission amount shown to business & creator
+  original_fixed_amount?: number; // What business originally entered (admin reference)
   milestone_slabs?: Array<{
     reach?: number;
     followers?: number;
@@ -229,6 +230,10 @@ const OfferSchema = new Schema<OfferInterface>(
       default: "milestone",
     },
     fixed_amount: {
+      type: Number,
+      default: 0,
+    },
+    original_fixed_amount: {
       type: Number,
       default: 0,
     },

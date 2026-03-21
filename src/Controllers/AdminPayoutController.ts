@@ -358,6 +358,9 @@ export const recordPayoutAsAdmin = async (
       amount: amount,
       method: payout_mode,
       date: new Date(),
+      offerId: offer._id,
+      bookingId: booking._id,
+      offerName: offer.name,
     });
 
     // Create wallet transaction record

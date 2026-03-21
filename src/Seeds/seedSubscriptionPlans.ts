@@ -14,22 +14,15 @@ const seedSubscriptionPlans = async () => {
     await mongoose.connect(process.env.Database_URL);
     console.log("✅ Connected to MongoDB");
 
-    // Check if plans already exist
-    const existingPlans = await SubscriptionPlanModel.findOne({
-      name: "Business Subscription Plan",
-    });
+    // Remove any existing plans and recreate with updated config
+    await SubscriptionPlanModel.deleteMany({});
+    console.log("🗑️  Cleared existing subscription plans");
 
-    if (existingPlans) {
-      console.log("⚠️  Subscription plans already exist. Skipping seed...");
-      await mongoose.connection.close();
-      return;
-    }
-
-    // Create subscription plan with tiers
+    // Create subscription plan with single tier
     const subscriptionPlan = await SubscriptionPlanModel.create({
       name: "Business Subscription Plan",
       description:
-        "Unlock premium features to grow your business on Lynkup. Choose the duration that works best for you.",
+        "Unlock premium features to grow your business on Lynkup.",
       category: "business",
       currency: "INR",
       isActive: true,
@@ -37,34 +30,10 @@ const seedSubscriptionPlans = async () => {
         {
           id: "silver",
           duration: 1,
-          price: 100,
+          price: 5000,
           discount: 0,
-          description: "1 Month - Best for trying out",
-          monthlyEquivalent: 100,
-        },
-        {
-          id: "gold",
-          duration: 3,
-          price: 250,
-          discount: 17,
-          description: "3 Months - Save 17%",
-          monthlyEquivalent: 83.33,
-        },
-        {
-          id: "platinum",
-          duration: 6,
-          price: 450,
-          discount: 25,
-          description: "6 Months - Save 25%",
-          monthlyEquivalent: 75,
-        },
-        {
-          id: "diamond",
-          duration: 12,
-          price: 750,
-          discount: 30,
-          description: "12 Months - Best value, Save 30%",
-          monthlyEquivalent: 62.5,
+          description: "1 Month - Full access to all features",
+          monthlyEquivalent: 5000,
         },
       ],
       features: [

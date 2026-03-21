@@ -1004,8 +1004,9 @@ export class InvoiceService {
       const invoiceDate = format(new Date(), "dd MMM yyyy, hh:mm a");
       const formattedAmount = `₹${details.amount.toLocaleString("en-IN")}`;
       const formattedBalance = `₹${details.remainingBalance.toLocaleString("en-IN")}`;
-      const gstAmount = Math.round((details.amount * 18) / 100);
-      const totalWithGST = details.amount + gstAmount;
+      const unlockDate = new Date();
+      unlockDate.setDate(unlockDate.getDate() + 30);
+      const formattedUnlockDate = format(unlockDate, "dd MMM yyyy");
 
       const htmlContent = `
 <!DOCTYPE html>
@@ -1077,11 +1078,6 @@ export class InvoiceService {
             margin: 20px 0;
             border-left: 4px solid #0277bd;
         }
-        .gst-breakdown {
-            font-size: 14px;
-            color: #666;
-            margin-top: 10px;
-        }
         .footer {
             text-align: center;
             color: #6c757d;
@@ -1100,7 +1096,7 @@ export class InvoiceService {
         </div>
         <div class="content">
             <p>Dear <strong>${details.userName}</strong>,</p>
-            <p>This is to confirm that ₹${details.amount.toLocaleString("en-IN")} has been deducted from your ${details.company} wallet.</p>
+            <p>₹${details.amount.toLocaleString("en-IN")} has been <strong>locked</strong> from your ${details.company} wallet as a security deposit for your offer. This amount will be held for <strong>30 days</strong> and automatically released on <strong>${formattedUnlockDate}</strong>.</p>
 
             <div class="invoice-details">
                 <div class="detail-row">
@@ -1129,19 +1125,16 @@ export class InvoiceService {
 
             <div class="total-section">
                 <div class="detail-row">
-                    <span class="detail-label">Base Amount:</span>
-                    <span class="detail-value">${formattedAmount}</span>
+                    <span class="detail-label">Amount Locked:</span>
+                    <span class="detail-value amount-highlight">${formattedAmount}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">GST (18%):</span>
-                    <span class="detail-value">₹${gstAmount.toLocaleString("en-IN")}</span>
+                    <span class="detail-label">Lock Period:</span>
+                    <span class="detail-value">30 days</span>
                 </div>
-                <div class="detail-row" style="border-top: 2px solid #0277bd; padding-top: 15px; margin-top: 10px;">
-                    <span class="detail-label" style="font-size: 18px;">Total Deducted:</span>
-                    <span class="detail-value amount-highlight">₹${totalWithGST.toLocaleString("en-IN")}</span>
-                </div>
-                <div class="gst-breakdown">
-                    <small>* GST breakdown: CGST 9% + SGST 9% = 18%</small>
+                <div class="detail-row">
+                    <span class="detail-label">Unlock Date:</span>
+                    <span class="detail-value">${formattedUnlockDate}</span>
                 </div>
             </div>
 
@@ -1158,9 +1151,9 @@ export class InvoiceService {
                 <strong>📌 Important Notes:</strong>
             </p>
             <ul style="color: #495057;">
-                <li>This is a system-generated invoice</li>
-                <li>Keep this invoice for your records</li>
-                <li>You can view all transactions in your dashboard</li>
+                <li>This amount is <strong>locked</strong>, not permanently deducted</li>
+                <li>It will be automatically released after 30 days if no disputes arise</li>
+                <li>You can view your locked balance in the wallet dashboard</li>
                 <li>For any queries, contact support@${details.company.toLowerCase()}.com</li>
             </ul>
 

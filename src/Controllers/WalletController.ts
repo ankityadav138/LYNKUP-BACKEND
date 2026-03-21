@@ -119,11 +119,14 @@ export const createRechargeOrder = async (req: Request, res: Response) => {
     console.log("Wallet like here",wallet)
 
     // Create Razorpay order
+    console.log("receipt generating",`rc_${userId.toString().slice(-6)}_${Date.now()}`)
     const razorpayOrder = await razorpay.orders.create({
       amount: amount * 100, // Convert to paise
       currency: "INR",
       receipt: `rc_${userId.toString().slice(-6)}_${Date.now()}`,
     });
+
+    
     
     console.log("Razorpay order created:", razorpayOrder);
 
@@ -272,6 +275,38 @@ export const getWalletTransactions = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error("Get transactions error:", error);
+    return resStatusData(res, "error", error.message, null);
+  }
+};
+
+/**
+ * Admin: Get wallet transactions for a specific business by user_id param
+ */
+export const getAdminBusinessWalletTransactions = async (req: Request, res: Response) => {
+  try {
+    const { user_id } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    const transactions = await WalletTransaction.find({ user_id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await WalletTransaction.countDocuments({ user_id });
+
+    return resStatusData(res, "success", "Transactions fetched successfully", {
+      transactions,
+      pagination: {
+        current_page: page,
+        total_pages: Math.ceil(total / limit),
+        total_records: total,
+        per_page: limit,
+      },
+    });
+  } catch (error: any) {
+    console.error("Admin get business wallet transactions error:", error);
     return resStatusData(res, "error", error.message, null);
   }
 };

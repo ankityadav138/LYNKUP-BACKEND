@@ -5,6 +5,11 @@ export interface IEarning extends Document {
   amount: number;
   method: string;
   date: Date;
+  brandName?: string;
+  offerName?: string;
+  description?: string;
+  offerId?: ObjectId;
+  bookingId?: ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -26,6 +31,23 @@ const EarningSchema = new Schema<IEarning>({
   date: {
     type: Date,
     required: true,
+  },
+  brandName: {
+    type: String,
+  },
+  offerName: {
+    type: String,
+  },
+  description: {
+    type: String,
+  },
+  offerId: {
+    type: Schema.Types.ObjectId,
+    ref: 'offers',
+  },
+  bookingId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Booking',
   },
 }, {
   timestamps: true,

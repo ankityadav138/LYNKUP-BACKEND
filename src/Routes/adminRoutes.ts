@@ -23,6 +23,7 @@ import {
   downloadPayoutInvoicePDF,
 } from "../Controllers/AdminPayoutController";
 import { recordEarning, getUserEarnings } from '../Controllers/EarningController';
+import { getAdminBusinessWalletTransactions } from '../Controllers/WalletController';
 import { triggerWithdrawalEligibilityUpdate } from "../Cron/SubscriptionCron";
 export const adminRoutes = (app: Express): void => {
   // ⚠️ AWS S3 disabled - Image upload temporarily removed
@@ -103,6 +104,7 @@ export const adminRoutes = (app: Express): void => {
   app.get("/admin/analytics/platform", adminMiddleware, errCatch(getPlatformOverview));
   app.get("/admin/analytics/subscriptions", adminMiddleware, errCatch(getSubscriptionAnalytics));
   app.get("/admin/analytics/wallets", adminMiddleware, errCatch(getWalletMonitoring));
+  app.get("/admin/wallet/transactions/:user_id", adminMiddleware, errCatch(getAdminBusinessWalletTransactions));
   app.get("/admin/analytics/creators", adminMiddleware, errCatch(getCreatorAnalytics));
   app.get("/admin/analytics/businesses", adminMiddleware, errCatch(getBusinessAnalytics));
 

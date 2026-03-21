@@ -40,6 +40,7 @@ import { Types } from "mongoose";
 import { Feedback } from "./offerController";
 import OfferModel from "../Models/offerModal";
 import EarningModel from "../Models/Earning";
+import Wallet from "../Models/Wallet";
 export const adminSignup = async (
   req: Request,
   res: Response,
@@ -472,8 +473,19 @@ export const listOfBusinessUser = async (
         UserModel.countDocuments(query),
       ]);
 
+      const userIds = users.map((u) => u._id);
+      const wallets = await Wallet.find({ user_id: { $in: userIds } }).lean();
+      const walletMap: Record<string, any> = wallets.reduce((acc: Record<string, any>, w: any) => {
+        acc[w.user_id.toString()] = w;
+        return acc;
+      }, {});
+      const usersWithWallet = users.map((u: any) => ({
+        ...u.toObject(),
+        wallet: walletMap[u._id.toString()] || null,
+      }));
+
       resStatusData(res, "success", "Business users fetched successfully", {
-        users,
+        users: usersWithWallet,
         totalCount,
         totalPages: Math.ceil(totalCount / pageSize),
         currentPage: pageNumber,
@@ -482,8 +494,19 @@ export const listOfBusinessUser = async (
       users = await UserModel.find(query).sort(sort);
       totalCount = users.length;
 
+      const userIds = users.map((u) => u._id);
+      const wallets = await Wallet.find({ user_id: { $in: userIds } }).lean();
+      const walletMap: Record<string, any> = wallets.reduce((acc: Record<string, any>, w: any) => {
+        acc[w.user_id.toString()] = w;
+        return acc;
+      }, {});
+      const usersWithWallet = users.map((u: any) => ({
+        ...u.toObject(),
+        wallet: walletMap[u._id.toString()] || null,
+      }));
+
       resStatusData(res, "success", "All business users fetched successfully", {
-        users,
+        users: usersWithWallet,
         totalCount,
       });
     }

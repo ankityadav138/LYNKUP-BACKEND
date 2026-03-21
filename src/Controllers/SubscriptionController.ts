@@ -72,7 +72,7 @@ export const createSubscriptionOrder = async (
     }
 
     // Validate tier format
-    if (!["silver", "gold", "platinum", "diamond"].includes(tier)) {
+    if (!["silver"].includes(tier)) {
       resStatusData(res, "error", "Invalid tier selected", {});
       return;
     }
