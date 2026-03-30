@@ -479,6 +479,7 @@ export const getPayoutDetails = async (
     const user_id = req.user._id;
     const { booking_id } = req.params;
 
+
     const booking = await BookingModel.findOne({
       _id: booking_id,
       $or: [{ restoId: user_id }, { userId: user_id }],

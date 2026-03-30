@@ -2007,7 +2007,7 @@ import WalletTransaction from "../Models/WalletTransaction";
 import { invoiceService } from "../Services/InvoiceService";
 
 const MINIMUM_OFFER_AMOUNT = 20000;
-const PLATFORM_COMMISSION_RATE = 0.15; // 15% platform commission on paid collaborations
+const PLATFORM_COMMISSION_RATE = 0.20; // 20% platform commission on paid collaborations
 export const createOffer = async (
   req: Request | any,
   res: Response
@@ -2384,7 +2384,7 @@ export const createOfferByBusiness = async (
           amount: totalLockAmount,
           status: "completed",
           description: collaboration_type === "paid"
-            ? `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for paid collaboration: ${name} (Creator payout: ₹${netFixedAmount.toLocaleString("en-IN")} after 15% platform fee)`
+            ? `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for paid collaboration: ${name}`
             : `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for milestone collaboration: ${name}`,
           reference_type: "offer",
           reference_id: offer._id,
@@ -2481,7 +2481,7 @@ export const createOfferByBusiness = async (
       // Create wallet transaction record (only for non-admin)
       if (req.user.userType !== "admin") {
         const transactionDescription = collaboration_type === "paid"
-          ? `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for paid collaboration: ${name} (Creator payout: ₹${netFixedAmount.toLocaleString("en-IN")} after 15% platform fee)`
+          ? `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for paid collaboration: ${name}`
           : `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for milestone collaboration: ${name}`;
 
         const transaction = await WalletTransaction.create({

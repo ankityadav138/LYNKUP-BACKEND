@@ -1,4 +1,4 @@
-import mongoose, { ObjectId, Schema, model } from "mongoose";
+import mongoose, { ObjectId, Schema, model, modelNames } from "mongoose";
 interface BookingInterface {
   offerId: ObjectId;
   restoId: ObjectId;
@@ -179,5 +179,8 @@ const BookingSchema = new Schema<BookingInterface>(
     timestamps: true,
   }
 );
+
+
+
 const BookingModel = model<BookingInterface>("booking", BookingSchema);
 export default BookingModel;
