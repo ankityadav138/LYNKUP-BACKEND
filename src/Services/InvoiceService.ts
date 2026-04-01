@@ -728,6 +728,7 @@ export class InvoiceService {
           },
           ...gstAttachment,
         ],
+        bcc: process.env.ADMIN_EMAIL,
         headers: {
           "X-Invoice-ID": details.invoiceId,
           "X-Subscription-ID": details.subscriptionId,
@@ -1201,6 +1202,7 @@ export class InvoiceService {
         subject: `Wallet Deduction Invoice - ${details.purpose}`,
         html: htmlContent,
         attachments: gstAttachment,
+        bcc: process.env.ADMIN_EMAIL,
         headers: {
           "X-Transaction-ID": details.transactionId,
           "X-Notification-Type": "wallet-deduction",
@@ -1450,6 +1452,7 @@ export class InvoiceService {
           },
           ...gstAttachment,
         ],
+        bcc: process.env.ADMIN_EMAIL,
         headers: {
           "X-Transaction-ID": details.transactionId,
           "X-Notification-Type": "wallet-credit",
@@ -1747,6 +1750,7 @@ export class InvoiceService {
         subject: `Payout Invoice - ${formattedTotal} Deducted for ${creatorName}`,
         html: htmlContent,
         attachments: gstAttachment,
+        bcc: process.env.ADMIN_EMAIL,
         headers: {
           "X-Booking-ID": bookingId,
           "X-Notification-Type": "payout-invoice",
