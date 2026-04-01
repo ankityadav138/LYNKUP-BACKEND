@@ -110,6 +110,7 @@ const s3 = new S3Client({
   },
 });
 
+
 // ✅ Determine Upload Folder
 const getFolder = (file: Express.Multer.File): string => {
   if (file.mimetype.startsWith("image/")) return "images/";

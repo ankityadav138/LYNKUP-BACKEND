@@ -81,107 +81,113 @@ export class InvoiceService {
   private async generateSubscriptionPDF(details: InvoiceDetails): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       try {
-        const doc = new PDFDocument({ size: 'A4', margin: 50 });
+        const doc = new PDFDocument({ size: 'A4', margin: 50, autoFirstPage: true });
         const chunks: Buffer[] = [];
 
         doc.on('data', (chunk) => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
+        const BLUE = '#667eea';
         const invoiceDate = format(new Date(), "dd MMM yyyy");
         const expiryDate = format(details.endDate, "dd MMM yyyy");
         const originalPrice = Math.round((details.amount / (100 - details.discount)) * 100);
         const discountAmount = originalPrice - details.amount;
 
-        // Header with gradient effect (simulated with rectangles)
-        doc.rect(0, 0, doc.page.width, 120).fill('#667eea');
-        
-        // Company logo/name
+        // Header
+        doc.rect(0, 0, doc.page.width, 120).fill(BLUE);
         doc.fontSize(28).fillColor('#ffffff').font('Helvetica-Bold')
-           .text(details.company.toUpperCase(), 50, 40, { align: 'left' });
+           .text(details.company.toUpperCase(), 50, 40, { lineBreak: false });
         doc.fontSize(12).fillColor('#ffffff').font('Helvetica')
-           .text('SUBSCRIPTION INVOICE', 50, 75);
-        
-        // Invoice number and date (right side)
+           .text('SUBSCRIPTION INVOICE', 50, 75, { lineBreak: false });
         doc.fontSize(10).fillColor('#ffffff')
-           .text(`Invoice #${details.invoiceId}`, 400, 50, { align: 'right' })
-           .text(invoiceDate, 400, 70, { align: 'right' });
+           .text(`Invoice #${details.invoiceId}`, 400, 50, { align: 'right', lineBreak: false })
+           .text(invoiceDate, 400, 70, { align: 'right', lineBreak: false });
 
-        // Reset to black text
-        doc.fillColor('#333333');
+        let yPos = 148;
 
-        // Bill To Section
-        let yPos = 160;
-        doc.fontSize(10).font('Helvetica-Bold').fillColor('#667eea')
-           .text('BILL TO', 50, yPos);
-        yPos += 20;
-        doc.fontSize(12).font('Helvetica-Bold').fillColor('#333333')
-           .text(details.userName, 50, yPos);
-        yPos += 18;
-        doc.fontSize(10).font('Helvetica').fillColor('#666666')
-           .text(details.userEmail, 50, yPos);
+        // Bill From (left) / Bill To (right)
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(BLUE)
+           .text('BILL FROM', 50, yPos, { lineBreak: false });
+        doc.fontSize(11).font('Helvetica-Bold').fillColor('#333333')
+           .text('ROSE INFLUENCER MARKETING LLP', 50, yPos + 14, { lineBreak: false });
+        doc.fontSize(9).font('Helvetica').fillColor('#666666')
+           .text('GST Reg No: 06ABKFR6483P1Z9', 50, yPos + 29, { lineBreak: false });
+
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(BLUE)
+           .text('BILL TO', 320, yPos, { lineBreak: false });
+        doc.fontSize(11).font('Helvetica-Bold').fillColor('#333333')
+           .text(details.userName, 320, yPos + 14, { lineBreak: false });
+        doc.fontSize(9).font('Helvetica').fillColor('#666666')
+           .text(details.userEmail, 320, yPos + 29, { lineBreak: false, width: 220 });
+
+        yPos += 50;
+        doc.moveTo(50, yPos).lineTo(545, yPos).stroke('#e0e0e0');
+        yPos += 12;
 
         // Plan Details Box
-        yPos += 40;
-        doc.roundedRect(50, yPos, 495, 100, 5).fillAndStroke('#f8f9fa', '#667eea');
-        
-        yPos += 20;
-        doc.fontSize(16).font('Helvetica-Bold').fillColor('#333333')
-           .text(`${details.planName} Subscription`, 70, yPos);
-        yPos += 25;
-        doc.fontSize(10).font('Helvetica').fillColor('#666666')
-           .text(`Tier: ${details.tier.toUpperCase()}`, 70, yPos)
-           .text(`Duration: ${details.duration} month(s)`, 250, yPos)
-           .text(`Valid Until: ${expiryDate}`, 400, yPos);
+        doc.roundedRect(50, yPos, 495, 80, 5).fillAndStroke('#f8f9fa', BLUE);
+        doc.fontSize(15).font('Helvetica-Bold').fillColor('#333333')
+           .text(`${details.planName} Subscription`, 70, yPos + 15, { lineBreak: false });
+        doc.fontSize(9).font('Helvetica').fillColor('#666666')
+           .text(`Tier: ${details.tier.toUpperCase()}`, 70, yPos + 38, { lineBreak: false })
+           .text(`Duration: ${details.duration} month(s)`, 220, yPos + 38, { lineBreak: false })
+           .text(`Valid Until: ${expiryDate}`, 390, yPos + 38, { lineBreak: false });
+        doc.fontSize(9).font('Helvetica').fillColor('#555555')
+           .text(`Start: ${format(details.startDate, "dd MMM yyyy")}`, 70, yPos + 55, { lineBreak: false })
+           .text(`Discount: ${details.discount}%`, 220, yPos + 55, { lineBreak: false });
+        yPos += 95;
 
-        // Pricing Table
-        yPos += 60;
-        doc.fontSize(10).font('Helvetica-Bold').fillColor('#333333');
-        doc.text('Description', 50, yPos)
-           .text('Amount', 450, yPos, { align: 'right' });
-        
+        // Pricing table header
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#333333')
+           .text('Description', 50, yPos, { lineBreak: false })
+           .text('Amount', 450, yPos, { align: 'right', width: 95, lineBreak: false });
         yPos += 5;
         doc.moveTo(50, yPos).lineTo(545, yPos).stroke('#e0e0e0');
-        yPos += 20;
+        yPos += 14;
 
         // Line items
-        doc.fontSize(10).font('Helvetica').fillColor('#666666');
-        doc.text(`${details.planName} - ${details.tier} (${details.duration} month${details.duration > 1 ? 's' : ''})`, 50, yPos)
-           .text(`₹${originalPrice.toLocaleString('en-IN')}`, 450, yPos, { align: 'right' });
-        
-        yPos += 25;
-        doc.text(`Discount (${details.discount}%)`, 50, yPos)
-           .text(`-₹${discountAmount.toLocaleString('en-IN')}`, 450, yPos, { align: 'right' });
-
+        doc.fontSize(9).font('Helvetica').fillColor('#666666')
+           .text(`${details.planName} - ${details.tier} (${details.duration} month${details.duration > 1 ? 's' : ''})`, 50, yPos, { lineBreak: false })
+           .text(`Rs.${originalPrice.toLocaleString('en-IN')}`, 450, yPos, { align: 'right', width: 95, lineBreak: false });
+        yPos += 20;
+        doc.text(`Discount (${details.discount}%)`, 50, yPos, { lineBreak: false })
+           .text(`-Rs.${discountAmount.toLocaleString('en-IN')}`, 450, yPos, { align: 'right', width: 95, lineBreak: false });
         yPos += 5;
         doc.moveTo(50, yPos).lineTo(545, yPos).stroke('#e0e0e0');
-        yPos += 20;
+        yPos += 12;
 
-        // Total
-        doc.rect(50, yPos - 10, 495, 35).fill('#f8f9fa');
-        doc.fontSize(14).font('Helvetica-Bold').fillColor('#333333');
-        doc.text('Total Amount', 50, yPos)
-           .text(`₹${details.amount.toLocaleString('en-IN')}`, 450, yPos, { align: 'right' });
+        // Total row
+        doc.rect(50, yPos - 5, 495, 30).fill('#f8f9fa');
+        doc.fontSize(13).font('Helvetica-Bold').fillColor('#333333')
+           .text('Total Amount', 50, yPos + 3, { lineBreak: false })
+           .text(`Rs.${details.amount.toLocaleString('en-IN')}`, 450, yPos + 3, { align: 'right', width: 95, lineBreak: false });
+        yPos += 38;
 
-        // Features Section
-        yPos += 50;
-        doc.fontSize(12).font('Helvetica-Bold').fillColor('#667eea')
-           .text('INCLUDED FEATURES', 50, yPos);
-        yPos += 25;
-        doc.fontSize(10).font('Helvetica').fillColor('#666666');
-        details.features.forEach((feature) => {
-          doc.circle(60, yPos + 5, 2).fill('#667eea');
-          doc.text(feature, 75, yPos);
-          yPos += 20;
+        // Features (capped at 8 to prevent overflow)
+        const maxFeatures = 8;
+        const featuresToShow = details.features.slice(0, maxFeatures);
+        doc.fontSize(10).font('Helvetica-Bold').fillColor(BLUE)
+           .text('INCLUDED FEATURES', 50, yPos, { lineBreak: false });
+        yPos += 18;
+        doc.fontSize(9).font('Helvetica').fillColor('#555555');
+        featuresToShow.forEach((feature) => {
+          doc.circle(58, yPos + 4, 2).fill(BLUE);
+          doc.text(feature, 68, yPos, { lineBreak: false });
+          yPos += 16;
         });
+        if (details.features.length > maxFeatures) {
+          doc.text(`...and ${details.features.length - maxFeatures} more features`, 68, yPos, { lineBreak: false });
+          yPos += 16;
+        }
 
-        // Footer
-        const footerY = doc.page.height - 100;
-        doc.moveTo(50, footerY).lineTo(545, footerY).stroke('#e0e0e0');
+        // Footer — relative to content, not page height
+        yPos += 18;
+        doc.moveTo(50, yPos).lineTo(545, yPos).stroke('#e0e0e0');
         doc.fontSize(8).font('Helvetica').fillColor('#999999')
-           .text('Thank you for your subscription!', 50, footerY + 15, { align: 'center', width: 495 })
-           .text('This is an automated invoice. Please keep it for your records.', 50, footerY + 30, { align: 'center', width: 495 })
-           .text(`Generated on ${invoiceDate}`, 50, footerY + 45, { align: 'center', width: 495 });
+           .text('Thank you for your subscription!', 50, yPos + 12, { align: 'center', width: 495, lineBreak: false })
+           .text('This is an automated invoice. Please keep it for your records.', 50, yPos + 26, { align: 'center', width: 495, lineBreak: false })
+           .text(`Generated on ${invoiceDate}`, 50, yPos + 40, { align: 'center', width: 495, lineBreak: false });
 
         doc.end();
       } catch (error) {
@@ -196,121 +202,121 @@ export class InvoiceService {
   private async generateWalletPDF(details: WalletInvoiceDetails): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       try {
-        const doc = new PDFDocument({ size: 'A4', margin: 50 });
+        const doc = new PDFDocument({ size: 'A4', margin: 50, autoFirstPage: true });
         const chunks: Buffer[] = [];
 
         doc.on('data', (chunk) => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
+        const PURPLE = '#6C63FF';
         const invoiceDate = format(new Date(), "dd MMM yyyy, hh:mm a");
 
-        // Header with success color
-        doc.rect(0, 0, doc.page.width, 120).fill('#28a745');
-        
-        // Title
-        doc.fontSize(28).fillColor('#ffffff').font('Helvetica-Bold')
-           .text('PAYMENT RECEIPT', 50, 40, { align: 'center', width: 495 });
-        doc.fontSize(14).fillColor('#ffffff').font('Helvetica')
-           .text('✓ Wallet Recharged Successfully', 50, 80, { align: 'center', width: 495 });
+        // Truncate long IDs to prevent line wrapping (which triggers new pages)
+        const shortTxnId = details.transactionId.length > 42
+          ? details.transactionId.slice(0, 40) + '..'
+          : details.transactionId;
+        const shortPayId = details.razorpayPaymentId
+          ? (details.razorpayPaymentId.length > 42
+            ? details.razorpayPaymentId.slice(0, 40) + '..'
+            : details.razorpayPaymentId)
+          : null;
 
-        // Reset to black text
-        doc.fillColor('#333333');
+        // Header
+        doc.rect(0, 0, doc.page.width, 100).fill(PURPLE);
+        doc.fontSize(26).fillColor('#ffffff').font('Helvetica-Bold')
+           .text('PAYMENT RECEIPT', 50, 28, { align: 'center', width: 495, lineBreak: false });
+        doc.fontSize(12).fillColor('#e8e6ff').font('Helvetica')
+           .text('Wallet Recharged Successfully', 50, 63, { align: 'center', width: 495, lineBreak: false });
 
-        // Success Badge
-        let yPos = 160;
-        doc.roundedRect(50, yPos, 495, 60, 5).fill('#d4edda');
-        doc.fontSize(14).font('Helvetica-Bold').fillColor('#155724')
-           .text(`🎉 ₹${details.amount.toLocaleString('en-IN')} Added to Your Wallet`, 50, yPos + 22, { align: 'center', width: 495 });
+        let yPos = 125;
 
-        // Customer Details
-        yPos += 90;
-        doc.fontSize(10).font('Helvetica-Bold').fillColor('#667eea')
-           .text('CUSTOMER DETAILS', 50, yPos);
-        yPos += 20;
+        // Bill From (left) / Bill To (right)
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(PURPLE)
+           .text('BILL FROM', 50, yPos, { lineBreak: false });
         doc.fontSize(11).font('Helvetica-Bold').fillColor('#333333')
-           .text(details.userName, 50, yPos);
-        yPos += 18;
-        doc.fontSize(10).font('Helvetica').fillColor('#666666')
-           .text(details.userEmail, 50, yPos);
+           .text('ROSE INFLUENCER MARKETING LLP', 50, yPos + 14, { lineBreak: false });
+        doc.fontSize(9).font('Helvetica').fillColor('#666666')
+           .text('GST Reg No: 06ABKFR6483P1Z9', 50, yPos + 29, { lineBreak: false });
 
-        // Transaction Details Box
-        yPos += 40;
-        doc.roundedRect(50, yPos, 495, 140, 5).fillAndStroke('#f8f9fa', '#dee2e6');
-        yPos += 20;
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(PURPLE)
+           .text('BILL TO', 320, yPos, { lineBreak: false });
+        doc.fontSize(11).font('Helvetica-Bold').fillColor('#333333')
+           .text(details.userName, 320, yPos + 14, { lineBreak: false });
+        doc.fontSize(9).font('Helvetica').fillColor('#666666')
+           .text(details.userEmail, 320, yPos + 29, { lineBreak: false, width: 220 });
 
-        const leftCol = 70;
-        const rightCol = 320;
+        yPos += 55;
+        doc.moveTo(50, yPos).lineTo(545, yPos).stroke('#e0e0e0');
+        yPos += 12;
 
-        doc.fontSize(10).font('Helvetica-Bold').fillColor('#495057');
-        doc.text('Transaction Date:', leftCol, yPos);
-        doc.font('Helvetica').fillColor('#212529')
-           .text(invoiceDate, rightCol, yPos);
+        // Amount badge
+        doc.roundedRect(50, yPos, 495, 44, 5).fill('#eeecff');
+        doc.fontSize(14).font('Helvetica-Bold').fillColor(PURPLE)
+           .text(`Rs.${details.amount.toLocaleString('en-IN')} Added to Your Wallet`, 50, yPos + 14, { align: 'center', width: 495, lineBreak: false });
+        yPos += 58;
 
-        yPos += 25;
-        doc.font('Helvetica-Bold').fillColor('#495057');
-        doc.text('Transaction ID:', leftCol, yPos);
-        doc.font('Helvetica').fillColor('#212529')
-           .text(details.transactionId, rightCol, yPos);
+        // Transaction details
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(PURPLE)
+           .text('TRANSACTION DETAILS', 50, yPos, { lineBreak: false });
+        yPos += 14;
 
-        if (details.razorpayPaymentId) {
-          yPos += 25;
-          doc.font('Helvetica-Bold').fillColor('#495057');
-          doc.text('Payment ID:', leftCol, yPos);
-          doc.font('Helvetica').fillColor('#212529')
-             .text(details.razorpayPaymentId, rightCol, yPos);
-        }
-
-        yPos += 25;
-        doc.font('Helvetica-Bold').fillColor('#495057');
-        doc.text('Payment Method:', leftCol, yPos);
-        doc.font('Helvetica').fillColor('#212529')
-           .text(details.paymentMethod, rightCol, yPos);
-
-        yPos += 35;
-        doc.moveTo(70, yPos).lineTo(525, yPos).stroke('#667eea');
-        yPos += 15;
-
-        doc.fontSize(12).font('Helvetica-Bold').fillColor('#495057');
-        doc.text('Amount Credited:', leftCol, yPos);
-        doc.fontSize(18).fillColor('#667eea')
-           .text(`₹${details.amount.toLocaleString('en-IN')}`, rightCol, yPos);
-
-        // New Balance
-        yPos += 50;
-        doc.roundedRect(50, yPos, 495, 50, 5).fill('#d1ecf1');
-        doc.fontSize(12).font('Helvetica-Bold').fillColor('#0c5460')
-           .text('New Wallet Balance:', 70, yPos + 18);
-        doc.fontSize(16).fillColor('#28a745')
-           .text(`₹${details.currentBalance.toLocaleString('en-IN')}`, 320, yPos + 16);
-
-        // What's Next Section
-        yPos += 80;
-        doc.fontSize(11).font('Helvetica-Bold').fillColor('#667eea')
-           .text("📌 WHAT'S NEXT?", 50, yPos);
-        yPos += 25;
-        doc.fontSize(9).font('Helvetica').fillColor('#666666');
-        
-        const nextSteps = [
-          'Your wallet is ready to use',
-          'Create offers (minimum ₹20,000 per offer)',
-          'View transaction history in your dashboard',
-          'Track your spending and balance'
+        const rows: [string, string][] = [
+          ['Transaction Date:', invoiceDate],
+          ['Transaction ID:', shortTxnId],
+          ...(shortPayId ? [['Payment ID:', shortPayId] as [string, string]] : []),
+          ['Payment Method:', details.paymentMethod],
         ];
 
-        nextSteps.forEach(step => {
-          doc.circle(60, yPos + 5, 2).fill('#667eea');
-          doc.text(step, 75, yPos);
-          yPos += 18;
+        const boxHeight = rows.length * 23 + 18;
+        doc.roundedRect(50, yPos, 495, boxHeight, 4).fillAndStroke('#f8f9fa', '#dee2e6');
+        yPos += 12;
+
+        rows.forEach(([label, value]) => {
+          doc.fontSize(9).font('Helvetica-Bold').fillColor('#495057')
+             .text(label, 65, yPos, { lineBreak: false });
+          doc.fontSize(9).font('Helvetica').fillColor('#212529')
+             .text(value, 260, yPos, { lineBreak: false });
+          yPos += 23;
         });
 
-        // Footer
-        const footerY = doc.page.height - 80;
-        doc.moveTo(50, footerY).lineTo(545, footerY).stroke('#e0e0e0');
-        doc.fontSize(10).font('Helvetica-Bold').fillColor('#333333')
-           .text(`Thank you for choosing ${details.company}`, 50, footerY + 15, { align: 'center', width: 495 });
+        yPos += 8;
+
+        // Amount credited
+        doc.moveTo(50, yPos).lineTo(545, yPos).stroke(PURPLE);
+        yPos += 12;
+        doc.fontSize(11).font('Helvetica-Bold').fillColor('#495057')
+           .text('Amount Credited:', 50, yPos, { lineBreak: false });
+        doc.fontSize(16).font('Helvetica-Bold').fillColor(PURPLE)
+           .text(`Rs.${details.amount.toLocaleString('en-IN')}`, 300, yPos - 2, { lineBreak: false });
+
+        // New balance box
+        yPos += 35;
+        doc.roundedRect(50, yPos, 495, 44, 5).fill('#eeecff');
+        doc.fontSize(11).font('Helvetica-Bold').fillColor('#333333')
+           .text('New Wallet Balance:', 65, yPos + 14, { lineBreak: false });
+        doc.fontSize(15).font('Helvetica-Bold').fillColor(PURPLE)
+           .text(`Rs.${details.currentBalance.toLocaleString('en-IN')}`, 300, yPos + 12, { lineBreak: false });
+
+        // Notes
+        yPos += 58;
+        doc.fontSize(9).font('Helvetica').fillColor('#666666');
+        [
+          '- Your wallet is ready to use',
+          '- You can now create offers (minimum Rs.20,000 per offer)',
+          '- View transaction history in your dashboard',
+        ].forEach(note => {
+          doc.text(note, 50, yPos, { lineBreak: false });
+          yPos += 16;
+        });
+
+        // Footer — relative to content, not page height
+        yPos += 20;
+        doc.moveTo(50, yPos).lineTo(545, yPos).stroke('#e0e0e0');
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#333333')
+           .text(`Thank you for choosing ${details.company}`, 50, yPos + 12, { align: 'center', width: 495, lineBreak: false });
         doc.fontSize(8).font('Helvetica').fillColor('#999999')
-           .text('This is an automated receipt. Please do not reply to this message.', 50, footerY + 35, { align: 'center', width: 495 });
+           .text('This is an automated receipt. Please do not reply to this message.', 50, yPos + 28, { align: 'center', width: 495, lineBreak: false });
 
         doc.end();
       } catch (error) {
@@ -587,6 +593,15 @@ export class InvoiceService {
                 </div>
             </div>
 
+            <!-- Supplier Details -->
+            <div class="section" style="margin-bottom: 25px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                <div class="section-title">Bill From</div>
+                <div class="user-details">
+                    <p><strong>ROSE INFLUENCER MARKETING LLP</strong></p>
+                    <p>GST Registration No: <strong>06ABKFR6483P1Z9</strong></p>
+                </div>
+            </div>
+
             <!-- User Details -->
             <div class="section">
                 <div class="section-title">Bill To</div>
@@ -695,6 +710,11 @@ export class InvoiceService {
       const html = this.generateInvoiceHTML(details);
       const pdfBuffer = await this.generateSubscriptionPDF(details);
 
+      const gstPdfPath = path.join(process.cwd(), "public", "image", "GST.pdf");
+      const gstAttachment = fs.existsSync(gstPdfPath)
+        ? [{ filename: "GST.pdf", content: fs.readFileSync(gstPdfPath), contentType: "application/pdf" }]
+        : [];
+
       const mailOptions = {
         from: this.emailFrom,
         to: details.userEmail,
@@ -706,6 +726,7 @@ export class InvoiceService {
             content: pdfBuffer,
             contentType: 'application/pdf',
           },
+          ...gstAttachment,
         ],
         headers: {
           "X-Invoice-ID": details.invoiceId,
@@ -1169,11 +1190,17 @@ export class InvoiceService {
 </html>
       `;
 
+      const gstPdfPath = path.join(process.cwd(), "public", "image", "GST.pdf");
+      const gstAttachment = fs.existsSync(gstPdfPath)
+        ? [{ filename: "GST.pdf", content: fs.readFileSync(gstPdfPath), contentType: "application/pdf" }]
+        : [];
+
       const mailOptions = {
         from: this.emailFrom,
         to: details.userEmail,
         subject: `Wallet Deduction Invoice - ${details.purpose}`,
         html: htmlContent,
+        attachments: gstAttachment,
         headers: {
           "X-Transaction-ID": details.transactionId,
           "X-Notification-Type": "wallet-deduction",
@@ -1405,6 +1432,11 @@ export class InvoiceService {
 
       const pdfBuffer = await this.generateWalletPDF(walletInvoiceDetails);
 
+      const gstPdfPath = path.join(process.cwd(), "public", "image", "GST.pdf");
+      const gstAttachment = fs.existsSync(gstPdfPath)
+        ? [{ filename: "GST.pdf", content: fs.readFileSync(gstPdfPath), contentType: "application/pdf" }]
+        : [];
+
       const mailOptions = {
         from: this.emailFrom,
         to: details.userEmail,
@@ -1416,6 +1448,7 @@ export class InvoiceService {
             content: pdfBuffer,
             contentType: 'application/pdf',
           },
+          ...gstAttachment,
         ],
         headers: {
           "X-Transaction-ID": details.transactionId,
@@ -1703,11 +1736,17 @@ export class InvoiceService {
         </html>
       `;
 
+      const gstPdfPath = path.join(process.cwd(), "public", "image", "GST.pdf");
+      const gstAttachment = fs.existsSync(gstPdfPath)
+        ? [{ filename: "GST.pdf", content: fs.readFileSync(gstPdfPath), contentType: "application/pdf" }]
+        : [];
+
       const mailOptions = {
         from: this.emailFrom,
         to: businessEmail,
         subject: `Payout Invoice - ${formattedTotal} Deducted for ${creatorName}`,
         html: htmlContent,
+        attachments: gstAttachment,
         headers: {
           "X-Booking-ID": bookingId,
           "X-Notification-Type": "payout-invoice",

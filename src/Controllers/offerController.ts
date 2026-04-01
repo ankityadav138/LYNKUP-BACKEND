@@ -2669,7 +2669,10 @@ export const showOfferAdmin = async (
         },
       },
       {
-        $unwind: "$userDetails",
+        $unwind: {
+          path: "$userDetails",
+          preserveNullAndEmptyArrays: isAdmin,
+        },
       },
       {
         $match: matchCondition,
@@ -3712,11 +3715,11 @@ export const Feedback = async (
       );
       return;
     }
-    else if (contentLink) {
+    else if (!contentLink) {
       resStatus(
         res,
         "false",
-        "Content link feedback is not allowed in this endpoint."
+        "Content link feedback is required."
       );
       return;
 
