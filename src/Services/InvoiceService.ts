@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+﻿import nodemailer from "nodemailer";
 import { format, addDays } from "date-fns";
 import mg from "nodemailer-mailgun-transport";
 import PDFDocument from "pdfkit";
@@ -339,362 +339,175 @@ export class InvoiceService {
 
     return `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f9f9f9;
-        }
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            border-radius: 10px 10px 0 0;
-            text-align: center;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 28px;
-            font-weight: 600;
-        }
-        .header p {
-            margin: 5px 0 0 0;
-            font-size: 14px;
-            opacity: 0.9;
-        }
-        .content {
-            background: white;
-            padding: 30px;
-            border-radius: 0 0 10px 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .invoice-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #f0f0f0;
-        }
-        .invoice-number {
-            font-weight: 600;
-            color: #667eea;
-        }
-        .invoice-date {
-            color: #666;
-            font-size: 14px;
-        }
-        .section {
-            margin-bottom: 25px;
-        }
-        .section-title {
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .user-details {
-            color: #666;
-            font-size: 14px;
-        }
-        .user-details p {
-            margin: 5px 0;
-        }
-        .plan-details {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-        }
-        .plan-name {
-            font-size: 18px;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 10px;
-            text-transform: capitalize;
-        }
-        .plan-tier {
-            display: inline-block;
-            background: #667eea;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 15px;
-            text-transform: capitalize;
-        }
-        .plan-info {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            font-size: 14px;
-            color: #666;
-            margin-top: 10px;
-        }
-        .plan-info-item {
-            display: flex;
-            justify-content: space-between;
-        }
-        .plan-info-label {
-            font-weight: 500;
-        }
-        .pricing-table {
-            width: 100%;
-            margin: 20px 0;
-            border-collapse: collapse;
-        }
-        .pricing-table th {
-            background: #f8f9fa;
-            padding: 12px;
-            text-align: left;
-            font-weight: 600;
-            color: #333;
-            border-bottom: 2px solid #e0e0e0;
-            font-size: 13px;
-        }
-        .pricing-table td {
-            padding: 12px;
-            border-bottom: 1px solid #f0f0f0;
-            color: #666;
-        }
-        .pricing-table tr:last-child td {
-            border-bottom: none;
-        }
-        .amount-right {
-            text-align: right;
-        }
-        .total-row {
-            background: #f8f9fa;
-            font-weight: 600;
-            color: #333;
-            font-size: 16px;
-        }
-        .total-row td {
-            padding: 15px 12px;
-            border: none;
-        }
-        .features {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
-        }
-        .features-title {
-            font-weight: 600;
-            margin-bottom: 10px;
-            color: #333;
-        }
-        .features-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .features-list li {
-            padding: 5px 0;
-            padding-left: 20px;
-            position: relative;
-            color: #666;
-            font-size: 14px;
-        }
-        .features-list li:before {
-            content: "✓";
-            position: absolute;
-            left: 0;
-            color: #667eea;
-            font-weight: bold;
-        }
-        .validity {
-            background: #f0f8ff;
-            border-left: 4px solid #667eea;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 20px 0;
-            font-size: 14px;
-            color: #333;
-        }
-        .validity-label {
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-        .footer {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-            color: #666;
-            font-size: 13px;
-            margin-top: 30px;
-        }
-        .footer p {
-            margin: 5px 0;
-        }
-        .company-name {
-            font-weight: 600;
-            color: #333;
-            font-size: 16px;
-        }
-        .button {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white !important;
-            padding: 14px 35px;
-            border-radius: 8px;
-            text-decoration: none;
-            margin: 25px auto;
-            font-weight: 600;
-            font-size: 15px;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-            transition: all 0.3s ease;
-        }
-        .button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-        }
-        .download-section {
-            text-align: center;
-            margin: 30px 0;
-            padding: 25px;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border-radius: 10px;
-            border: 2px solid #667eea;
-        }
-        .divider {
-            border-top: 1px solid #e0e0e0;
-            margin: 20px 0;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subscription Invoice</title>
+  <style>
+    body { margin:0; padding:0; background-color:#f4f6f9; }
+    @media only screen and (max-width:600px) {
+      .bill-td { display:block !important; width:100% !important; border-right:none !important; border-bottom:1px solid #dde3ff !important; }
+    }
+  </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Invoice</h1>
-            <p>Subscription Purchase Receipt from ${details.company}</p>
-        </div>
+<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f9;">
+  <tr><td align="center" style="padding:30px 15px;">
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.10);">
 
-        <div class="content">
-            <!-- Invoice Header -->
-            <div class="invoice-header">
-                <div>
-                    <div class="invoice-number">Invoice #${details.invoiceId}</div>
-                </div>
-                <div style="text-align: right;">
-                    <div class="invoice-date">${invoiceDate}</div>
-                </div>
-            </div>
+      <!-- HEADER -->
+      <tr>
+        <td align="center" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:36px 30px 28px;">
+          <p style="margin:0 0 6px 0;font-size:12px;color:#d4d0ff;letter-spacing:2px;font-weight:700;text-transform:uppercase;">Subscription Invoice</p>
+          <h1 style="margin:0;font-size:26px;color:#ffffff;font-weight:700;line-height:1.3;">Invoice #${details.invoiceId}</h1>
+          <p style="margin:10px 0 0 0;font-size:13px;color:#c4beff;">${invoiceDate}</p>
+        </td>
+      </tr>
 
-            <!-- Supplier Details -->
-            <div class="section" style="margin-bottom: 25px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
-                <div class="section-title">Bill From</div>
-                <div class="user-details">
-                    <p><strong>ROSE INFLUENCER MARKETING LLP</strong></p>
-                    <p>GST Registration No: <strong>06ABKFR6483P1Z9</strong></p>
-                </div>
-            </div>
+      <!-- BILL FROM / BILL TO -->
+      <tr>
+        <td style="padding:24px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #dde3ff;border-radius:8px;overflow:hidden;">
+            <tr>
+              <td class="bill-td" width="50%" valign="top" style="padding:16px 18px;border-right:1px solid #dde3ff;background-color:#f7f6ff;">
+                <p style="margin:0 0 6px 0;font-size:10px;font-weight:700;color:#667eea;letter-spacing:2px;text-transform:uppercase;">Bill From</p>
+                <p style="margin:0 0 3px 0;font-size:14px;font-weight:700;color:#222222;">ROSE INFLUENCER MARKETING LLP</p>
+                <p style="margin:0;font-size:12px;color:#666666;">GST Registration No: <strong>06ABKFR6483P1Z9</strong></p>
+              </td>
+              <td class="bill-td" width="50%" valign="top" style="padding:16px 18px;background-color:#f7f6ff;">
+                <p style="margin:0 0 6px 0;font-size:10px;font-weight:700;color:#667eea;letter-spacing:2px;text-transform:uppercase;">Bill To</p>
+                <p style="margin:0 0 3px 0;font-size:14px;font-weight:700;color:#222222;">${details.userName}</p>
+                <p style="margin:0;font-size:12px;color:#666666;">${details.userEmail}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-            <!-- User Details -->
-            <div class="section">
-                <div class="section-title">Bill To</div>
-                <div class="user-details">
-                    <p><strong>${details.userName}</strong></p>
-                    <p>${details.userEmail}</p>
-                </div>
-            </div>
+      <!-- PLAN DETAILS -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fa;border-left:4px solid #667eea;border-radius:0 8px 8px 0;padding:0;">
+            <tr>
+              <td style="padding:18px 20px;">
+                <p style="margin:0 0 6px 0;font-size:18px;font-weight:700;color:#333333;">${details.planName} Subscription</p>
+                <span style="display:inline-block;background:#667eea;color:#ffffff;padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;">${details.tier}</span>
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;">
+                  <tr>
+                    <td style="font-size:13px;color:#666666;padding-bottom:4px;width:50%;"><strong style="color:#495057;">Duration:</strong> ${details.duration} month(s)</td>
+                    <td style="font-size:13px;color:#666666;padding-bottom:4px;"><strong style="color:#495057;">Valid Until:</strong> ${expiryDate}</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:13px;color:#666666;"><strong style="color:#495057;">Start Date:</strong> ${format(details.startDate, "dd MMM yyyy")}</td>
+                    <td style="font-size:13px;color:#666666;"><strong style="color:#495057;">Discount:</strong> ${details.discount}%</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-            <!-- Plan Details -->
-            <div class="plan-details">
-                <div class="plan-name">${details.planName} Subscription</div>
-                <span class="plan-tier">${details.tier}</span>
-                
-                <div class="plan-info">
-                    <div class="plan-info-item">
-                        <span class="plan-info-label">Duration:</span>
-                        <span>${details.duration} month(s)</span>
-                    </div>
-                    <div class="plan-info-item">
-                        <span class="plan-info-label">Valid Until:</span>
-                        <span>${expiryDate}</span>
-                    </div>
-                    <div class="plan-info-item">
-                        <span class="plan-info-label">Discount:</span>
-                        <span>${details.discount}%</span>
-                    </div>
-                </div>
-            </div>
+      <!-- PRICING TABLE -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e8e8e8;border-radius:8px;overflow:hidden;">
+            <tr style="background-color:#f8f9fa;">
+              <th style="padding:11px 16px;font-size:12px;font-weight:700;color:#333333;text-align:left;border-bottom:2px solid #e0e0e0;">Description</th>
+              <th style="padding:11px 16px;font-size:12px;font-weight:700;color:#333333;text-align:right;border-bottom:2px solid #e0e0e0;">Amount</th>
+            </tr>
+            <tr>
+              <td style="padding:11px 16px;font-size:13px;color:#555555;border-bottom:1px solid #f0f0f0;">${details.planName} - ${details.tier} (${details.duration} month${details.duration > 1 ? 's' : ''})</td>
+              <td style="padding:11px 16px;font-size:13px;color:#555555;text-align:right;border-bottom:1px solid #f0f0f0;">&#8377;${originalPrice.toLocaleString("en-IN")}</td>
+            </tr>
+            <tr style="background-color:#f8f9fa;">
+              <td style="padding:11px 16px;font-size:13px;color:#555555;border-bottom:1px solid #e0e0e0;">Discount (${details.discount}%)</td>
+              <td style="padding:11px 16px;font-size:13px;color:#e53935;text-align:right;border-bottom:1px solid #e0e0e0;">-&#8377;${discountAmount.toLocaleString("en-IN")}</td>
+            </tr>
+            <tr style="background-color:#f0f4ff;">
+              <td style="padding:14px 16px;font-size:15px;font-weight:700;color:#333333;">Total Amount</td>
+              <td style="padding:14px 16px;font-size:18px;font-weight:700;color:#667eea;text-align:right;">${formattedAmount}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-            <!-- Pricing -->
-            <table class="pricing-table">
-                <thead>
-                    <tr>
-                        <th>Description</th>
-                        <th class="amount-right">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>${details.planName} - ${details.tier} (${details.duration} month${details.duration > 1 ? 's' : ''})</td>
-                        <td class="amount-right">₹${originalPrice.toLocaleString("en-IN")}</td>
-                    </tr>
-                    <tr>
-                        <td>Discount (${details.discount}%)</td>
-                        <td class="amount-right">-₹${discountAmount.toLocaleString("en-IN")}</td>
-                    </tr>
-                    <tr class="total-row">
-                        <td>Total Amount</td>
-                        <td class="amount-right">${formattedAmount}</td>
-                    </tr>
-                </tbody>
-            </table>
+      <!-- VALIDITY -->
+      <tr>
+        <td style="padding:20px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f8ff;border-left:4px solid #667eea;border-radius:0 8px 8px 0;">
+            <tr>
+              <td style="padding:14px 18px;">
+                <p style="margin:0 0 8px 0;font-size:13px;font-weight:700;color:#333333;">Subscription Validity</p>
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                  <tr>
+                    <td style="font-size:13px;color:#555555;padding-bottom:4px;width:50%;"><strong>Start Date:</strong> ${format(details.startDate, "dd MMM yyyy")}</td>
+                    <td style="font-size:13px;color:#555555;padding-bottom:4px;"><strong>Expiry Date:</strong> ${expiryDate}</td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="font-size:13px;font-weight:700;color:#667eea;">Duration: ${details.duration} month(s)</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-            <!-- Validity -->
-            <div class="validity">
-                <div class="validity-label">Subscription Validity</div>
-                <div><strong>Start Date:</strong> ${format(details.startDate, "dd MMM yyyy")}</div>
-                <div><strong>Expiry Date:</strong> ${expiryDate}</div>
-                <div style="margin-top: 10px; color: #667eea;"><strong>Duration: ${details.duration} month(s)</strong></div>
-            </div>
+      <!-- FEATURES -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <p style="margin:0 0 10px 0;font-size:12px;font-weight:700;color:#333333;letter-spacing:1px;text-transform:uppercase;">Included Features</p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fa;border-radius:8px;border:1px solid #e8e8e8;">
+            <tr><td style="padding:14px 16px 4px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                ${details.features.map(f => `
+                <tr>
+                  <td valign="top" style="padding-right:8px;padding-bottom:10px;color:#667eea;font-size:15px;line-height:1;">&#10003;</td>
+                  <td style="padding-bottom:10px;font-size:13px;color:#495057;line-height:1.5;">${f}</td>
+                </tr>`).join('')}
+              </table>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
 
-            <!-- Features -->
-            <div class="features">
-                <div class="features-title">Included Features</div>
-                <ul class="features-list">
-                    ${details.features.map((feature) => `<li>${feature}</li>`).join("")}
-                </ul>
-            </div>
+      <!-- PDF NOTICE -->
+      <tr>
+        <td style="padding:20px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:2px solid #667eea;border-radius:8px;background-color:#f7f6ff;">
+            <tr>
+              <td align="center" style="padding:18px 20px;">
+                <p style="margin:0 0 5px 0;font-size:13px;font-weight:700;color:#667eea;">INVOICE PDF ATTACHED</p>
+                <p style="margin:0;font-size:12px;color:#666666;">A detailed PDF invoice is attached to this email. Please save it for your records.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-            <!-- Download PDF Section -->
-            <div class="download-section">
-                <h3 style="margin: 0 0 10px 0; color: #667eea; font-weight: 600;">INVOICE PDF ATTACHED</h3>
-                <p style="margin: 0 0 15px 0; color: #666; font-size: 14px;">
-                    A detailed PDF invoice has been attached to this email for your records.
-                </p>
-                <p style="margin: 0; color: #999; font-size: 12px;">
-                    Please check your email attachments to download and save the invoice.
-                </p>
-            </div>
+      <!-- FOOTER -->
+      <tr>
+        <td style="padding:26px 30px 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="border-top:1px solid #e8e8e8;padding-top:18px;text-align:center;">
+                <p style="margin:0 0 4px 0;font-size:14px;font-weight:600;color:#333333;">${details.company}</p>
+                <p style="margin:0 0 4px 0;font-size:13px;color:#555555;">Thank you for your subscription!</p>
+                <p style="margin:0;font-size:12px;color:#999999;">This is an automated invoice. Please keep it for your records.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-            <!-- Footer -->
-            <div class="footer">
-                <p class="company-name">${details.company}</p>
-                <p>Thank you for your subscription!</p>
-                <p>This is an automated invoice. Please keep it for your records.</p>
-                <p style="margin-top: 15px; color: #999;">If you have any questions, please contact support</p>
-            </div>
-        </div>
-    </div>
+    </table>
+  </td></tr>
+</table>
 </body>
 </html>
-    `;
+    `
   }
 
   /**
@@ -710,11 +523,6 @@ export class InvoiceService {
       const html = this.generateInvoiceHTML(details);
       const pdfBuffer = await this.generateSubscriptionPDF(details);
 
-      const gstPdfPath = path.join(process.cwd(), "public", "image", "GST.pdf");
-      const gstAttachment = fs.existsSync(gstPdfPath)
-        ? [{ filename: "GST.pdf", content: fs.readFileSync(gstPdfPath), contentType: "application/pdf" }]
-        : [];
-
       const mailOptions = {
         from: this.emailFrom,
         to: details.userEmail,
@@ -726,7 +534,6 @@ export class InvoiceService {
             content: pdfBuffer,
             contentType: 'application/pdf',
           },
-          ...gstAttachment,
         ],
         bcc: process.env.ADMIN_EMAIL,
         headers: {
@@ -1032,176 +839,185 @@ export class InvoiceService {
 
       const htmlContent = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-        }
-        .container {
-            max-width: 650px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f9f9f9;
-        }
-        .header {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            padding: 30px;
-            border-radius: 10px 10px 0 0;
-            text-align: center;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 28px;
-            font-weight: 600;
-        }
-        .content {
-            background: white;
-            padding: 30px;
-            border-radius: 0 0 10px 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .invoice-details {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-        }
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid #dee2e6;
-        }
-        .detail-row:last-child {
-            border-bottom: none;
-        }
-        .detail-label {
-            font-weight: 600;
-            color: #495057;
-        }
-        .detail-value {
-            color: #212529;
-            text-align: right;
-        }
-        .amount-highlight {
-            font-size: 24px;
-            font-weight: bold;
-            color: #28a745;
-        }
-        .total-section {
-            background: #e7f5ff;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
-            border-left: 4px solid #0277bd;
-        }
-        .footer {
-            text-align: center;
-            color: #6c757d;
-            font-size: 14px;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 2px solid #dee2e6;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wallet Deduction Invoice</title>
+  <style>
+    body { margin:0; padding:0; background-color:#f4f6f9; }
+    @media only screen and (max-width:600px) {
+      .bill-td { display:block !important; width:100% !important; border-right:none !important; border-bottom:1px solid #c8e6c9 !important; }
+    }
+  </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>💳 Wallet Deduction Invoice</h1>
-            <p>Transaction ID: ${details.transactionId}</p>
-        </div>
-        <div class="content">
-            <p>Dear <strong>${details.userName}</strong>,</p>
-            <p>₹${details.amount.toLocaleString("en-IN")} has been <strong>locked</strong> from your ${details.company} wallet as a security deposit for your offer. This amount will be held for <strong>30 days</strong> and automatically released on <strong>${formattedUnlockDate}</strong>.</p>
+<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f9;">
+  <tr><td align="center" style="padding:30px 15px;">
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.10);">
 
-            <div class="invoice-details">
-                <div class="detail-row">
-                    <span class="detail-label">Transaction Date:</span>
-                    <span class="detail-value">${invoiceDate}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Transaction ID:</span>
-                    <span class="detail-value">${details.transactionId}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Purpose:</span>
-                    <span class="detail-value">${details.purpose}</span>
-                </div>
-                ${details.offerName ? `
-                <div class="detail-row">
-                    <span class="detail-label">Offer:</span>
-                    <span class="detail-value">${details.offerName}</span>
-                </div>
-                ` : ''}
-                <div class="detail-row">
-                    <span class="detail-label">Description:</span>
-                    <span class="detail-value">${details.description}</span>
-                </div>
-            </div>
+      <!-- HEADER -->
+      <tr>
+        <td align="center" style="background:linear-gradient(135deg,#28a745 0%,#20c997 100%);padding:36px 30px 28px;">
+          <p style="margin:0 0 6px 0;font-size:12px;color:#d4f5e2;letter-spacing:2px;font-weight:700;text-transform:uppercase;">Wallet Notice</p>
+          <h1 style="margin:0;font-size:26px;color:#ffffff;font-weight:700;line-height:1.3;">Wallet Deduction Invoice</h1>
+          <p style="margin:10px 0 0 0;font-size:13px;color:#a8f0cc;">${invoiceDate}</p>
+        </td>
+      </tr>
 
-            <div class="total-section">
-                <div class="detail-row">
-                    <span class="detail-label">Amount Locked:</span>
-                    <span class="detail-value amount-highlight">${formattedAmount}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Lock Period:</span>
-                    <span class="detail-value">30 days</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Unlock Date:</span>
-                    <span class="detail-value">${formattedUnlockDate}</span>
-                </div>
-            </div>
+      <!-- ALERT BADGE -->
+      <tr>
+        <td style="padding:24px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td align="center" style="background-color:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:14px 20px;">
+                <p style="margin:0 0 4px 0;font-size:12px;font-weight:700;color:#e65100;letter-spacing:1px;text-transform:uppercase;">&#9888; Amount Locked</p>
+                <p style="margin:0;font-size:20px;font-weight:700;color:#e65100;">${formattedAmount} Locked from Your Wallet</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-            <div class="invoice-details">
-                <div class="detail-row">
-                    <span class="detail-label">Remaining Wallet Balance:</span>
-                    <span class="detail-value" style="font-size: 18px; font-weight: bold; color: #28a745;">
-                        ${formattedBalance}
-                    </span>
-                </div>
-            </div>
+      <!-- GREETING -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <p style="margin:0;font-size:15px;color:#333333;">Dear <strong>${details.userName}</strong>,</p>
+          <p style="margin:10px 0 0 0;font-size:14px;color:#555555;line-height:1.7;">&#8377;${details.amount.toLocaleString("en-IN")} has been <strong>locked</strong> from your ${details.company} wallet as a security deposit for your offer. This amount will be held for <strong>30 days</strong> and automatically released on <strong>${formattedUnlockDate}</strong>.</p>
+        </td>
+      </tr>
 
-            <p style="margin-top: 20px;">
-                <strong>📌 Important Notes:</strong>
-            </p>
-            <ul style="color: #495057;">
-                <li>This amount is <strong>locked</strong>, not permanently deducted</li>
-                <li>It will be automatically released after 30 days if no disputes arise</li>
-                <li>You can view your locked balance in the wallet dashboard</li>
-                <li>For any queries, contact support@${details.company.toLowerCase()}.com</li>
-            </ul>
+      <!-- BILL FROM / BILL TO -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #c8e6c9;border-radius:8px;overflow:hidden;">
+            <tr>
+              <td class="bill-td" width="50%" valign="top" style="padding:16px 18px;border-right:1px solid #c8e6c9;background-color:#f1fdf4;">
+                <p style="margin:0 0 6px 0;font-size:10px;font-weight:700;color:#28a745;letter-spacing:2px;text-transform:uppercase;">Bill From</p>
+                <p style="margin:0 0 3px 0;font-size:14px;font-weight:700;color:#222222;">ROSE INFLUENCER MARKETING LLP</p>
+                <p style="margin:0;font-size:12px;color:#666666;">GST Reg No: <strong>06ABKFR6483P1Z9</strong></p>
+              </td>
+              <td class="bill-td" width="50%" valign="top" style="padding:16px 18px;background-color:#f1fdf4;">
+                <p style="margin:0 0 6px 0;font-size:10px;font-weight:700;color:#28a745;letter-spacing:2px;text-transform:uppercase;">Bill To</p>
+                <p style="margin:0 0 3px 0;font-size:14px;font-weight:700;color:#222222;">${details.userName}</p>
+                <p style="margin:0;font-size:12px;color:#666666;">${details.userEmail}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-            <div class="footer">
-                <p>Thank you for using ${details.company}</p>
-                <p style="font-size: 12px; color: #868e96;">
-                    This is an automated email. Please do not reply to this message.
-                </p>
-            </div>
-        </div>
-    </div>
+      <!-- TRANSACTION DETAILS -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <p style="margin:0 0 10px 0;font-size:10px;font-weight:700;color:#28a745;letter-spacing:2px;text-transform:uppercase;">Transaction Details</p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e8e8e8;border-radius:8px;overflow:hidden;">
+            <tr style="background-color:#f8f9fa;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #e8e8e8;width:44%;">Transaction Date</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;border-bottom:1px solid #e8e8e8;">${invoiceDate}</td>
+            </tr>
+            <tr>
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #e8e8e8;">Transaction ID</td>
+              <td style="padding:11px 16px;font-size:12px;color:#212529;border-bottom:1px solid #e8e8e8;word-break:break-all;">${details.transactionId}</td>
+            </tr>
+            <tr style="background-color:#f8f9fa;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #e8e8e8;">Purpose</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;border-bottom:1px solid #e8e8e8;">${details.purpose}</td>
+            </tr>
+            ${details.offerName ? `
+            <tr>
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #e8e8e8;">Offer</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;border-bottom:1px solid #e8e8e8;">${details.offerName}</td>
+            </tr>
+            ` : ''}
+            <tr ${details.offerName ? '' : 'style="background-color:#f8f9fa;"'}>
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;">Description</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;">${details.description}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- LOCK DETAILS -->
+      <tr>
+        <td style="padding:20px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #bbdefb;border-radius:8px;overflow:hidden;background-color:#e3f2fd;">
+            <tr>
+              <td style="padding:13px 16px;font-size:13px;font-weight:600;color:#1565c0;border-bottom:1px solid #bbdefb;">Amount Locked</td>
+              <td align="right" style="padding:13px 16px;border-bottom:1px solid #bbdefb;">
+                <span style="font-size:20px;font-weight:700;color:#e65100;">${formattedAmount}</span>
+              </td>
+            </tr>
+            <tr style="background-color:#e8f5e9;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #c8e6c9;">Lock Period</td>
+              <td align="right" style="padding:11px 16px;font-size:13px;color:#212529;border-bottom:1px solid #c8e6c9;">30 days</td>
+            </tr>
+            <tr>
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #e8e8e8;">Unlock Date</td>
+              <td align="right" style="padding:11px 16px;font-size:13px;font-weight:700;color:#28a745;border-bottom:1px solid #e8e8e8;">${formattedUnlockDate}</td>
+            </tr>
+            <tr style="background-color:#f8f9fa;">
+              <td style="padding:13px 16px;font-size:14px;font-weight:600;color:#495057;">Remaining Wallet Balance</td>
+              <td align="right" style="padding:13px 16px;">
+                <span style="font-size:18px;font-weight:700;color:#28a745;">${formattedBalance}</span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- IMPORTANT NOTES -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <p style="margin:0 0 10px 0;font-size:12px;font-weight:700;color:#333333;letter-spacing:1px;text-transform:uppercase;">Important Notes</p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fa;border-radius:8px;border:1px solid #e8e8e8;">
+            <tr><td style="padding:14px 16px 4px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td valign="top" style="padding-right:8px;padding-bottom:10px;color:#28a745;font-size:15px;line-height:1;">&#8226;</td>
+                  <td style="padding-bottom:10px;font-size:13px;color:#495057;line-height:1.5;">This amount is <strong>locked</strong>, not permanently deducted</td>
+                </tr>
+                <tr>
+                  <td valign="top" style="padding-right:8px;padding-bottom:10px;color:#28a745;font-size:15px;line-height:1;">&#8226;</td>
+                  <td style="padding-bottom:10px;font-size:13px;color:#495057;line-height:1.5;">It will be automatically released after 30 days if no disputes arise</td>
+                </tr>
+                <tr>
+                  <td valign="top" style="padding-right:8px;padding-bottom:14px;color:#28a745;font-size:15px;line-height:1;">&#8226;</td>
+                  <td style="padding-bottom:14px;font-size:13px;color:#495057;line-height:1.5;">You can view your locked balance in the wallet dashboard</td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- FOOTER -->
+      <tr>
+        <td style="padding:26px 30px 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="border-top:1px solid #e8e8e8;padding-top:18px;text-align:center;">
+                <p style="margin:0 0 4px 0;font-size:14px;font-weight:600;color:#333333;">Thank you for using ${details.company}</p>
+                <p style="margin:0;font-size:12px;color:#999999;">This is an automated email. Please do not reply to this message.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
 </body>
 </html>
-      `;
-
-      const gstPdfPath = path.join(process.cwd(), "public", "image", "GST.pdf");
-      const gstAttachment = fs.existsSync(gstPdfPath)
-        ? [{ filename: "GST.pdf", content: fs.readFileSync(gstPdfPath), contentType: "application/pdf" }]
-        : [];
+      `
 
       const mailOptions = {
         from: this.emailFrom,
         to: details.userEmail,
         subject: `Wallet Deduction Invoice - ${details.purpose}`,
         html: htmlContent,
-        attachments: gstAttachment,
+        attachments: [],
         bcc: process.env.ADMIN_EMAIL,
         headers: {
           "X-Transaction-ID": details.transactionId,
@@ -1262,182 +1078,187 @@ export class InvoiceService {
 
       const htmlContent = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-        }
-        .container {
-            max-width: 650px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f9f9f9;
-        }
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            border-radius: 10px 10px 0 0;
-            text-align: center;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 28px;
-            font-weight: 600;
-        }
-        .content {
-            background: white;
-            padding: 30px;
-            border-radius: 0 0 10px 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .success-badge {
-            background: #d4edda;
-            color: #155724;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            margin: 20px 0;
-            border: 1px solid #c3e6cb;
-        }
-        .invoice-details {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-        }
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid #dee2e6;
-        }
-        .detail-row:last-child {
-            border-bottom: none;
-        }
-        .detail-label {
-            font-weight: 600;
-            color: #495057;
-        }
-        .detail-value {
-            color: #212529;
-            text-align: right;
-        }
-        .amount-highlight {
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
-        }
-        .footer {
-            text-align: center;
-            color: #6c757d;
-            font-size: 14px;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 2px solid #dee2e6;
-        }
-        .download-section {
-            text-align: center;
-            margin: 30px 0;
-            padding: 25px;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border-radius: 10px;
-            border: 2px solid #28a745;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wallet Recharge Receipt</title>
+  <style>
+    body { margin:0; padding:0; background-color:#f4f6f9; }
+    @media only screen and (max-width:600px) {
+      .bill-td { display:block !important; width:100% !important; border-right:none !important; border-bottom:1px solid #e0dfff !important; }
+    }
+  </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Wallet Recharged Successfully</h1>
-            <p>Payment Receipt</p>
-        </div>
-        <div class="content">
-            <div class="success-badge">
-                <strong>PAYMENT SUCCESSFUL</strong><br>
-                Your wallet has been credited with ${formattedAmount}
-            </div>
+<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f9;">
+  <tr><td align="center" style="padding:30px 15px;">
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.10);">
 
-            <p>Dear <strong>${details.userName}</strong>,</p>
-            <p>Thank you for recharging your ${details.company} wallet. Your payment has been processed successfully.</p>
+      <!-- HEADER -->
+      <tr>
+        <td align="center" style="background:linear-gradient(135deg,#6C63FF 0%,#4f46e5 100%);padding:36px 30px 28px;">
+          <p style="margin:0 0 6px 0;font-size:12px;color:#d4d0ff;letter-spacing:2px;font-weight:700;text-transform:uppercase;">Payment Receipt</p>
+          <h1 style="margin:0;font-size:26px;color:#ffffff;font-weight:700;line-height:1.3;">Wallet Recharged Successfully</h1>
+          <p style="margin:10px 0 0 0;font-size:13px;color:#c4beff;">${invoiceDate}</p>
+        </td>
+      </tr>
 
-            <div class="invoice-details">
-                <div class="detail-row">
-                    <span class="detail-label">Transaction Date:</span>
-                    <span class="detail-value">${invoiceDate}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Transaction ID:</span>
-                    <span class="detail-value">${details.transactionId}</span>
-                </div>
-                ${details.razorpayPaymentId ? `
-                <div class="detail-row">
-                    <span class="detail-label">Payment ID:</span>
-                    <span class="detail-value">${details.razorpayPaymentId}</span>
-                </div>
-                ` : ''}
-                <div class="detail-row">
-                    <span class="detail-label">Payment Method:</span>
-                    <span class="detail-value">${details.paymentMethod}</span>
-                </div>
-                <div class="detail-row" style="border-top: 2px solid #667eea; padding-top: 15px; margin-top: 10px;">
-                    <span class="detail-label" style="font-size: 18px;">Amount Credited:</span>
-                    <span class="detail-value amount-highlight">${formattedAmount}</span>
-                </div>
-            </div>
+      <!-- SUCCESS BADGE -->
+      <tr>
+        <td style="padding:24px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td align="center" style="background-color:#eefbf0;border:1px solid #b7ebc5;border-radius:8px;padding:16px 20px;">
+                <p style="margin:0 0 4px 0;font-size:12px;font-weight:700;color:#1a7a36;letter-spacing:1px;text-transform:uppercase;">&#10003; Payment Successful</p>
+                <p style="margin:0;font-size:22px;font-weight:700;color:#1a7a36;">${formattedAmount} Added to Your Wallet</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-            <div class="invoice-details">
-                <div class="detail-row">
-                    <span class="detail-label">New Wallet Balance:</span>
-                    <span class="detail-value" style="font-size: 20px; font-weight: bold; color: #28a745;">
-                        ${formattedBalance}
-                    </span>
-                </div>
-            </div>
+      <!-- GREETING -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <p style="margin:0;font-size:15px;color:#333333;">Dear <strong>${details.userName}</strong>,</p>
+          <p style="margin:10px 0 0 0;font-size:14px;color:#555555;line-height:1.7;">Thank you for recharging your <strong>${details.company}</strong> wallet. Your payment has been processed successfully and your wallet is ready to use.</p>
+        </td>
+      </tr>
 
-            <p style="margin-top: 20px;">
-                <strong style="color: #333; font-size: 15px;">WHAT'S NEXT</strong>
-            </p>
-            <ul style="color: #495057; line-height: 1.8;">
-                <li>Your wallet is ready to use</li>
-                <li>You can now create offers (minimum ₹20,000 per offer)</li>
-                <li>View transaction history in your dashboard</li>
-                <li>Download this receipt for your records</li>
-            </ul>
+      <!-- BILL FROM / BILL TO -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e0dfff;border-radius:8px;overflow:hidden;">
+            <tr>
+              <td class="bill-td" width="50%" valign="top" style="padding:16px 18px;border-right:1px solid #e0dfff;background-color:#f7f6ff;">
+                <p style="margin:0 0 6px 0;font-size:10px;font-weight:700;color:#6C63FF;letter-spacing:2px;text-transform:uppercase;">Bill From</p>
+                <p style="margin:0 0 3px 0;font-size:14px;font-weight:700;color:#222222;">ROSE INFLUENCER MARKETING LLP</p>
+                <p style="margin:0;font-size:12px;color:#666666;">GST Reg No: <strong>06ABKFR6483P1Z9</strong></p>
+              </td>
+              <td class="bill-td" width="50%" valign="top" style="padding:16px 18px;background-color:#f7f6ff;">
+                <p style="margin:0 0 6px 0;font-size:10px;font-weight:700;color:#6C63FF;letter-spacing:2px;text-transform:uppercase;">Bill To</p>
+                <p style="margin:0 0 3px 0;font-size:14px;font-weight:700;color:#222222;">${details.userName}</p>
+                <p style="margin:0;font-size:12px;color:#666666;">${details.userEmail}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-            <!-- Download PDF Section -->
-            <div class="download-section">
-                <h3 style="margin: 0 0 10px 0; color: #28a745; font-weight: 600;">RECEIPT PDF ATTACHED</h3>
-                <p style="margin: 0 0 15px 0; color: #666; font-size: 14px;">
-                    A detailed PDF receipt has been attached to this email for your records.
-                </p>
-                <p style="margin: 0; color: #999; font-size: 12px;">
-                    Please check your email attachments to download and save the receipt.
-                </p>
-            </div>
+      <!-- TRANSACTION DETAILS -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <p style="margin:0 0 10px 0;font-size:10px;font-weight:700;color:#6C63FF;letter-spacing:2px;text-transform:uppercase;">Transaction Details</p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e8e8e8;border-radius:8px;overflow:hidden;">
+            <tr style="background-color:#f8f9fa;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #e8e8e8;width:44%;">Transaction Date</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;border-bottom:1px solid #e8e8e8;">${invoiceDate}</td>
+            </tr>
+            <tr>
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #e8e8e8;">Transaction ID</td>
+              <td style="padding:11px 16px;font-size:12px;color:#212529;border-bottom:1px solid #e8e8e8;word-break:break-all;">${details.transactionId}</td>
+            </tr>
+            ${details.razorpayPaymentId ? `
+            <tr style="background-color:#f8f9fa;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #e8e8e8;">Payment ID</td>
+              <td style="padding:11px 16px;font-size:12px;color:#212529;border-bottom:1px solid #e8e8e8;word-break:break-all;">${details.razorpayPaymentId}</td>
+            </tr>
+            <tr>
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;">Payment Method</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;">${details.paymentMethod}</td>
+            </tr>
+            ` : `
+            <tr style="background-color:#f8f9fa;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;">Payment Method</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;">${details.paymentMethod}</td>
+            </tr>
+            `}
+          </table>
+        </td>
+      </tr>
 
-            <div class="footer">
-                <p>Thank you for choosing ${details.company}</p>
-                <p style="font-size: 12px; color: #868e96;">
-                    This is an automated email. Please do not reply to this message.
-                </p>
-            </div>
-        </div>
-    </div>
+      <!-- AMOUNT SUMMARY -->
+      <tr>
+        <td style="padding:20px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e0dfff;border-radius:8px;overflow:hidden;">
+            <tr style="background-color:#f7f6ff;">
+              <td style="padding:13px 16px;font-size:14px;font-weight:600;color:#495057;border-bottom:1px solid #e0dfff;">Amount Credited</td>
+              <td align="right" style="padding:13px 16px;border-bottom:1px solid #e0dfff;">
+                <span style="font-size:22px;font-weight:700;color:#6C63FF;">${formattedAmount}</span>
+              </td>
+            </tr>
+            <tr style="background-color:#eefbf0;">
+              <td style="padding:13px 16px;font-size:14px;font-weight:600;color:#495057;">New Wallet Balance</td>
+              <td align="right" style="padding:13px 16px;">
+                <span style="font-size:20px;font-weight:700;color:#1a7a36;">${formattedBalance}</span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- WHAT'S NEXT -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <p style="margin:0 0 10px 0;font-size:12px;font-weight:700;color:#333333;letter-spacing:1px;text-transform:uppercase;">What's Next</p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fa;border-radius:8px;border:1px solid #e8e8e8;">
+            <tr><td style="padding:14px 16px 4px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td valign="top" style="padding-right:8px;padding-bottom:10px;color:#6C63FF;font-size:16px;line-height:1;">&#8226;</td>
+                  <td style="padding-bottom:10px;font-size:13px;color:#495057;line-height:1.5;">Your wallet is ready to use immediately</td>
+                </tr>
+                <tr>
+                  <td valign="top" style="padding-right:8px;padding-bottom:10px;color:#6C63FF;font-size:16px;line-height:1;">&#8226;</td>
+                  <td style="padding-bottom:10px;font-size:13px;color:#495057;line-height:1.5;">You can now create offers (minimum &#8377;20,000 per offer)</td>
+                </tr>
+                <tr>
+                  <td valign="top" style="padding-right:8px;padding-bottom:14px;color:#6C63FF;font-size:16px;line-height:1;">&#8226;</td>
+                  <td style="padding-bottom:14px;font-size:13px;color:#495057;line-height:1.5;">View your full transaction history in the dashboard</td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- PDF NOTICE -->
+      <tr>
+        <td style="padding:20px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:2px solid #6C63FF;border-radius:8px;background-color:#f7f6ff;">
+            <tr>
+              <td align="center" style="padding:18px 20px;">
+                <p style="margin:0 0 5px 0;font-size:13px;font-weight:700;color:#6C63FF;">RECEIPT PDF ATTACHED</p>
+                <p style="margin:0;font-size:12px;color:#666666;">A detailed PDF receipt is attached to this email. Please save it for your records.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- FOOTER -->
+      <tr>
+        <td style="padding:26px 30px 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="border-top:1px solid #e8e8e8;padding-top:18px;text-align:center;">
+                <p style="margin:0 0 4px 0;font-size:14px;font-weight:600;color:#333333;">Thank you for choosing ${details.company}</p>
+                <p style="margin:0;font-size:12px;color:#999999;">This is an automated email. Please do not reply to this message.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
 </body>
 </html>
       `;
 
       const pdfBuffer = await this.generateWalletPDF(walletInvoiceDetails);
-
-      const gstPdfPath = path.join(process.cwd(), "public", "image", "GST.pdf");
-      const gstAttachment = fs.existsSync(gstPdfPath)
-        ? [{ filename: "GST.pdf", content: fs.readFileSync(gstPdfPath), contentType: "application/pdf" }]
-        : [];
 
       const mailOptions = {
         from: this.emailFrom,
@@ -1450,7 +1271,6 @@ export class InvoiceService {
             content: pdfBuffer,
             contentType: 'application/pdf',
           },
-          ...gstAttachment,
         ],
         bcc: process.env.ADMIN_EMAIL,
         headers: {
@@ -1516,240 +1336,191 @@ export class InvoiceService {
       }).format(totalAmount);
 
       const htmlContent = `
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Payout GST Invoice</title>
-          <style>
-            body {
-              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-              line-height: 1.6;
-              color: #333;
-              background: #f4f6f9;
-              margin: 0;
-              padding: 20px;
-            }
-            .email-container {
-              max-width: 650px;
-              margin: 0 auto;
-              background: white;
-              border-radius: 10px;
-              overflow: hidden;
-              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }
-            .header {
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: white;
-              padding: 30px;
-              text-align: center;
-            }
-            .header h1 {
-              margin: 0;
-              font-size: 28px;
-              font-weight: 600;
-            }
-            .company-info {
-              background: #f0f0f0;
-              padding: 15px;
-              text-align: center;
-              border-bottom: 1px solid #ddd;
-              font-size: 12px;
-            }
-            .company-info p {
-              margin: 3px 0;
-            }
-            .content {
-              padding: 30px;
-            }
-            .invoice-badge {
-              background: #e8f5e9;
-              color: #2e7d32;
-              padding: 15px;
-              border-radius: 8px;
-              text-align: center;
-              margin: 20px 0;
-              border: 1px solid #c8e6c9;
-            }
-            .invoice-badge h2 {
-              margin: 0;
-              font-size: 18px;
-              font-weight: 600;
-            }
-            .invoice-details {
-              background: #f8f9fa;
-              padding: 20px;
-              border-radius: 8px;
-              margin: 20px 0;
-            }
-            .detail-row {
-              display: flex;
-              justify-content: space-between;
-              padding: 10px 0;
-              border-bottom: 1px solid #dee2e6;
-            }
-            .detail-row:last-child {
-              border-bottom: none;
-            }
-            .detail-label {
-              font-weight: 600;
-              color: #495057;
-            }
-            .detail-value {
-              color: #212529;
-              text-align: right;
-            }
-            .amount-section {
-              background: #fff3cd;
-              padding: 20px;
-              border-radius: 8px;
-              margin: 20px 0;
-              border: 2px solid #ffc107;
-            }
-            .amount-row {
-              display: flex;
-              justify-content: space-between;
-              padding: 8px 0;
-              font-size: 16px;
-            }
-            .amount-total {
-              font-size: 20px;
-              font-weight: bold;
-              color: #d32f2f;
-              border-top: 2px solid #dc3545;
-              padding-top: 12px;
-              margin-top: 8px;
-            }
-            .gst-info {
-              background: #e3f2fd;
-              padding: 15px;
-              border-radius: 8px;
-              margin: 20px 0;
-              border-left: 4px solid #2196f3;
-            }
-            .gst-info strong {
-              display: block;
-              margin-bottom: 8px;
-            }
-            .gst-row {
-              display: flex;
-              justify-content: space-between;
-              padding: 4px 0;
-              font-size: 14px;
-            }
-            .footer {
-              background: #f8f9fa;
-              padding: 20px;
-              text-align: center;
-              color: #6c757d;
-              font-size: 12px;
-              border-top: 1px solid #dee2e6;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="email-container">
-            <div class="header">
-              <h1>PAYOUT DEDUCTION INVOICE</h1>
-              <p style="margin: 5px 0 0 0; opacity: 0.9;">GST Invoice for Creator Payment</p>
-            </div>
-            
-            ${companyName || gstNumber ? `
-            <div class="company-info">
-              ${companyName ? `<p><strong>${companyName}</strong></p>` : ''}
-              ${gstNumber ? `<p>GST Number: ${gstNumber}</p>` : ''}
-            </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payout GST Invoice</title>
+  <style>
+    body { margin:0; padding:0; background-color:#f4f6f9; }
+    @media only screen and (max-width:600px) {
+      .bill-td { display:block !important; width:100% !important; border-right:none !important; border-bottom:1px solid #dde3ff !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f9;">
+  <tr><td align="center" style="padding:30px 15px;">
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.10);">
+
+      <!-- HEADER -->
+      <tr>
+        <td align="center" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:36px 30px 28px;">
+          <p style="margin:0 0 6px 0;font-size:12px;color:#d4d0ff;letter-spacing:2px;font-weight:700;text-transform:uppercase;">GST Invoice</p>
+          <h1 style="margin:0;font-size:26px;color:#ffffff;font-weight:700;line-height:1.3;">Payout Deduction Invoice</h1>
+          <p style="margin:10px 0 0 0;font-size:13px;color:#c4beff;">Creator Payment Confirmation</p>
+        </td>
+      </tr>
+
+      <!-- COMPANY INFO (if available) -->
+      ${companyName || gstNumber ? `
+      <tr>
+        <td align="center" style="background-color:#f8f9fa;padding:12px 20px;border-bottom:1px solid #e8e8e8;">
+          ${companyName ? `<p style="margin:0 0 2px 0;font-size:14px;font-weight:700;color:#333333;">${companyName}</p>` : ''}
+          ${gstNumber ? `<p style="margin:0;font-size:12px;color:#666666;">GST Number: ${gstNumber}</p>` : ''}
+        </td>
+      </tr>
+      ` : ''}
+
+      <!-- BADGE -->
+      <tr>
+        <td style="padding:24px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td align="center" style="background-color:#eefbf0;border:1px solid #b7ebc5;border-radius:8px;padding:14px 20px;">
+                <p style="margin:0 0 4px 0;font-size:12px;font-weight:700;color:#1a7a36;letter-spacing:1px;text-transform:uppercase;">&#10003; Payment Processed to Creator</p>
+                <p style="margin:0;font-size:14px;color:#1a7a36;">Amount deducted from locked wallet balance</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- GREETING -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <p style="margin:0;font-size:15px;color:#333333;">Dear <strong>${businessName}</strong>,</p>
+          <p style="margin:10px 0 0 0;font-size:14px;color:#555555;line-height:1.7;">This is to confirm that a payout has been processed to the creator from your locked wallet balance. Below are the transaction details:</p>
+        </td>
+      </tr>
+
+      <!-- BILL FROM / BILL TO -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #dde3ff;border-radius:8px;overflow:hidden;">
+            <tr>
+              <td class="bill-td" width="50%" valign="top" style="padding:16px 18px;border-right:1px solid #dde3ff;background-color:#f7f6ff;">
+                <p style="margin:0 0 6px 0;font-size:10px;font-weight:700;color:#667eea;letter-spacing:2px;text-transform:uppercase;">Bill From</p>
+                <p style="margin:0 0 3px 0;font-size:14px;font-weight:700;color:#222222;">ROSE INFLUENCER MARKETING LLP</p>
+                <p style="margin:0;font-size:12px;color:#666666;">GST Reg No: <strong>06ABKFR6483P1Z9</strong></p>
+              </td>
+              <td class="bill-td" width="50%" valign="top" style="padding:16px 18px;background-color:#f7f6ff;">
+                <p style="margin:0 0 6px 0;font-size:10px;font-weight:700;color:#667eea;letter-spacing:2px;text-transform:uppercase;">Bill To</p>
+                <p style="margin:0 0 3px 0;font-size:14px;font-weight:700;color:#222222;">${businessName}</p>
+                <p style="margin:0;font-size:12px;color:#666666;">${businessEmail}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- BOOKING DETAILS -->
+      <tr>
+        <td style="padding:22px 30px 0;">
+          <p style="margin:0 0 10px 0;font-size:10px;font-weight:700;color:#667eea;letter-spacing:2px;text-transform:uppercase;">Booking Details</p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e8e8e8;border-radius:8px;overflow:hidden;">
+            <tr style="background-color:#f8f9fa;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #e8e8e8;width:44%;">Creator Name</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;border-bottom:1px solid #e8e8e8;">${creatorName}</td>
+            </tr>
+            <tr>
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #e8e8e8;">Offer / Campaign</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;border-bottom:1px solid #e8e8e8;">${offerName}</td>
+            </tr>
+            <tr style="background-color:#f8f9fa;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #e8e8e8;">Booking Reference</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;border-bottom:1px solid #e8e8e8;">#${bookingId}</td>
+            </tr>
+            <tr>
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:${payoutMode ? '1px solid #e8e8e8' : 'none'};">Payout Date</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;border-bottom:${payoutMode ? '1px solid #e8e8e8' : 'none'};">${format(new Date(payoutDate), "PPP")}</td>
+            </tr>
+            ${payoutMode ? `
+            <tr style="background-color:#f8f9fa;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;">Payout Mode</td>
+              <td style="padding:11px 16px;font-size:13px;color:#212529;">${payoutMode}</td>
+            </tr>
             ` : ''}
-            
-            <div class="content">
-              <div class="invoice-badge">
-                <h2>Payment Processed to Creator</h2>
-                <p style="margin: 5px 0 0 0;">Amount Deducted from Locked Balance</p>
-              </div>
+          </table>
+        </td>
+      </tr>
 
-              <p>Dear ${businessName},</p>
-              <p>This is to confirm that a payout has been processed to the creator from your locked wallet balance. Below are the transaction details:</p>
+      <!-- AMOUNT BREAKDOWN -->
+      <tr>
+        <td style="padding:20px 30px 0;">
+          <p style="margin:0 0 10px 0;font-size:10px;font-weight:700;color:#667eea;letter-spacing:2px;text-transform:uppercase;">Amount Breakdown</p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #ffe082;border-radius:8px;overflow:hidden;background-color:#fffde7;">
+            <tr>
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #ffe082;">Base Payout Amount</td>
+              <td align="right" style="padding:11px 16px;font-size:13px;color:#212529;border-bottom:1px solid #ffe082;">${formattedPayoutAmount}</td>
+            </tr>
+            <tr style="background-color:#fff8e1;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:600;color:#495057;border-bottom:1px solid #ffe082;">GST (18%)</td>
+              <td align="right" style="padding:11px 16px;font-size:13px;color:#212529;border-bottom:1px solid #ffe082;">${formattedGST}</td>
+            </tr>
+            <tr style="background-color:#fff3cd;">
+              <td style="padding:8px 16px 8px 26px;font-size:12px;color:#777777;border-bottom:1px solid #ffe082;">CGST (9%)</td>
+              <td align="right" style="padding:8px 16px;font-size:12px;color:#777777;border-bottom:1px solid #ffe082;">${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(gstAmount / 2)}</td>
+            </tr>
+            <tr style="background-color:#fff3cd;">
+              <td style="padding:8px 16px 11px 26px;font-size:12px;color:#777777;border-bottom:2px solid #ffc107;">SGST (9%)</td>
+              <td align="right" style="padding:8px 16px 11px;font-size:12px;color:#777777;border-bottom:2px solid #ffc107;">${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(gstAmount / 2)}</td>
+            </tr>
+            <tr style="background-color:#fff9c4;">
+              <td style="padding:14px 16px;font-size:15px;font-weight:700;color:#c62828;">Total Deducted</td>
+              <td align="right" style="padding:14px 16px;font-size:18px;font-weight:700;color:#c62828;">${formattedTotal}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-              <div class="invoice-details">
-                <div class="detail-row">
-                  <span class="detail-label">Creator Name:</span>
-                  <span class="detail-value">${creatorName}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Offer/Campaign:</span>
-                  <span class="detail-value">${offerName}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Booking Reference:</span>
-                  <span class="detail-value">#${bookingId}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Payout Date:</span>
-                  <span class="detail-value">${format(new Date(payoutDate), "PPP")}</span>
-                </div>
-                ${payoutMode ? `
-                <div class="detail-row">
-                  <span class="detail-label">Payout Mode:</span>
-                  <span class="detail-value">${payoutMode}</span>
-                </div>
-                ` : ''}
-              </div>
+      ${notes ? `
+      <!-- NOTES -->
+      <tr>
+        <td style="padding:20px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fa;border-radius:8px;border-left:4px solid #667eea;">
+            <tr><td style="padding:14px 18px;font-size:13px;color:#495057;line-height:1.6;"><strong>Additional Notes:</strong><br>${notes}</td></tr>
+          </table>
+        </td>
+      </tr>
+      ` : ''}
 
-              <div class="amount-section">
-                <h3 style="margin: 0 0 15px 0; color: #495057;">Amount Breakdown</h3>
-                <div class="amount-row">
-                  <span>Base Payout Amount:</span>
-                  <span>${formattedPayoutAmount}</span>
-                </div>
-                <div class="amount-row">
-                  <span>GST (18%):</span>
-                  <span>${formattedGST}</span>
-                </div>
-                <div class="amount-row amount-total">
-                  <span>Total Deducted:</span>
-                  <span>${formattedTotal}</span>
-                </div>
-              </div>
+      <!-- IMPORTANT NOTE -->
+      <tr>
+        <td style="padding:20px 30px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fafafa;border-radius:8px;border:1px solid #e8e8e8;">
+            <tr><td style="padding:14px 18px;font-size:13px;color:#555555;line-height:1.6;"><strong>Note:</strong> This amount has been deducted from your locked wallet balance. The creator has been paid outside the platform as per your manual payout record.</td></tr>
+          </table>
+        </td>
+      </tr>
 
-              <div class="gst-info">
-                <strong>GST Breakdown:</strong>
-                <div class="gst-row">
-                  <span>CGST (9%):</span>
-                  <span>${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(gstAmount / 2)}</span>
-                </div>
-                <div class="gst-row">
-                  <span>SGST (9%):</span>
-                  <span>${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(gstAmount / 2)}</span>
-                </div>
-              </div>
+      <!-- FOOTER -->
+      <tr>
+        <td style="padding:26px 30px 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="border-top:1px solid #e8e8e8;padding-top:18px;text-align:center;">
+                <p style="margin:0 0 4px 0;font-size:14px;font-weight:600;color:#333333;">Thank you for using ${companyName || 'LYNKUP'}</p>
+                <p style="margin:0;font-size:12px;color:#999999;">This is an automated invoice. Please do not reply to this email.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-              ${notes ? `<p><strong>Additional Notes:</strong><br>${notes}</p>` : ''}
-              <p><strong>Note:</strong> This amount has been deducted from your locked wallet balance. The creator has been paid outside the platform as per your manual payout record.</p>
-
-              <p style="margin-top: 30px;">If you have any questions regarding this transaction, please contact our support team.</p>
-            </div>
-
-            <div class="footer">
-              <p style="margin: 0;">Thank you for using ${companyName || 'LYNKUP'}</p>
-              <p style="margin: 5px 0 0 0;">This is an automated invoice. Please do not reply to this email.</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-
-      const gstPdfPath = path.join(process.cwd(), "public", "image", "GST.pdf");
-      const gstAttachment = fs.existsSync(gstPdfPath)
-        ? [{ filename: "GST.pdf", content: fs.readFileSync(gstPdfPath), contentType: "application/pdf" }]
-        : [];
-
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>
+      `
       const mailOptions = {
         from: this.emailFrom,
         to: businessEmail,
         subject: `Payout Invoice - ${formattedTotal} Deducted for ${creatorName}`,
         html: htmlContent,
-        attachments: gstAttachment,
+        attachments: [],
         bcc: process.env.ADMIN_EMAIL,
         headers: {
           "X-Booking-ID": bookingId,
