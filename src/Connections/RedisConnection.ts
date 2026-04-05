@@ -7,7 +7,8 @@ const client = createClient({
     password: process.env.REDIS_PASSWORD ,
     socket: {
         host: process.env.REDIS_URL,
-        port: 16287
+        port: 16287,
+        
     }
 });
 // const client: any = null;  // Temporarily disabled

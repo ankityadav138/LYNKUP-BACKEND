@@ -1,11 +1,16 @@
 import { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import SubscriptionModel from "../Models/SubscriptionModel";
 import User from "../Models/UserModel";
 import { resStatusData } from "../Responses/Response";
 
+// Grace period in days
+const GRACE_PERIOD_DAYS = 3;
+
 /**
  * Middleware to check if user has an active subscription
- * Automatically updates expired subscriptions
+ * Handles grace period - users can still access during grace period with warnings
+ * Automatically updates expired subscriptions using transactions
  * Attaches subscription details to request object
  */
 export const requireActiveSubscription = async (
@@ -37,10 +42,10 @@ export const requireActiveSubscription = async (
       return;
     }
 
-    // Find active subscription for user
+    // Find active or grace period subscription for user
     const subscription = await SubscriptionModel.findOne({
       userId,
-      status: "active",
+      status: { $in: ["active", "expiring_soon", "grace_period"] },
     }).populate("planId");
 
     // If no subscription found
@@ -57,34 +62,96 @@ export const requireActiveSubscription = async (
       return;
     }
 
-    // Check if subscription has expired
-    if (subscription.endDate < new Date()) {
-      // Mark subscription as expired
-      subscription.status = "expired";
-      await subscription.save();
+    const now = new Date();
 
-      // Update user
-      await User.findByIdAndUpdate(userId, {
-        hasActiveSubscription: false,
-        currentSubscriptionId: null,
-      });
+    // Check if grace period has also expired
+    if (subscription.graceEndDate && subscription.graceEndDate < now) {
+      // Grace period expired - use transaction to update both
+      const session = await mongoose.startSession();
+      session.startTransaction();
+
+      try {
+        subscription.status = "expired";
+        subscription.isInGracePeriod = false;
+        await subscription.save({ session });
+
+        await User.findByIdAndUpdate(
+          userId,
+          {
+            hasActiveSubscription: false,
+            currentSubscriptionId: null,
+          },
+          { session }
+        );
+
+        await session.commitTransaction();
+      } catch (txError) {
+        await session.abortTransaction();
+        console.error("Middleware transaction failed:", txError);
+      } finally {
+        session.endSession();
+      }
 
       resStatusData(
         res,
         "error",
-        "Your subscription has expired. Please renew to continue.",
+        "Your subscription and grace period have expired. Please renew to continue.",
         {
           code: "SUBSCRIPTION_EXPIRED",
           action: "REDIRECT_TO_SUBSCRIPTION_PAGE",
           expiryDate: subscription.endDate,
+          graceEndDate: subscription.graceEndDate,
         }
       );
       return;
     }
 
-    // Calculate days remaining
+    // Check if subscription has expired but still in grace period
+    if (subscription.endDate < now && subscription.graceEndDate && subscription.graceEndDate >= now) {
+      // In grace period - allow access but warn user
+      const graceDaysRemaining = Math.ceil(
+        (subscription.graceEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      // Update status if not already in grace_period
+      if (subscription.status !== "grace_period") {
+        subscription.status = "grace_period";
+        subscription.isInGracePeriod = true;
+        await subscription.save();
+      }
+
+      // Set warning header
+      res.setHeader(
+        "X-Subscription-Warning",
+        `Grace period: ${graceDaysRemaining} days remaining to renew`
+      );
+      res.setHeader("X-Subscription-Grace-Period", "true");
+
+      // Attach subscription details with grace period info
+      (req as any).subscription = {
+        id: subscription._id,
+        userId: subscription.userId,
+        planId: subscription.planId,
+        tier: subscription.tier,
+        duration: subscription.duration,
+        status: subscription.status,
+        startDate: subscription.startDate,
+        endDate: subscription.endDate,
+        graceEndDate: subscription.graceEndDate,
+        amount: subscription.amount,
+        daysRemaining: 0,
+        graceDaysRemaining,
+        isInGracePeriod: true,
+        isExpiringSoon: false,
+      };
+
+      next();
+      return;
+    }
+
+    // Normal active subscription
     const daysRemaining = Math.ceil(
-      (subscription.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      (subscription.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     // Attach subscription details to request for use in controllers
@@ -97,9 +164,12 @@ export const requireActiveSubscription = async (
       status: subscription.status,
       startDate: subscription.startDate,
       endDate: subscription.endDate,
+      graceEndDate: subscription.graceEndDate,
       amount: subscription.amount,
       daysRemaining,
-      isExpiringsoon: daysRemaining <= 7, // Flag if expiring in 7 days
+      graceDaysRemaining: 0,
+      isInGracePeriod: false,
+      isExpiringSoon: daysRemaining <= 7,
     };
 
     // If expiring soon, attach warning to headers
@@ -128,6 +198,7 @@ export const requireActiveSubscription = async (
 /**
  * Middleware to check subscription status without blocking
  * Attaches subscription details to request if available
+ * Handles grace period status
  * Always calls next() (doesn't block)
  */
 export const attachSubscriptionDetails = async (
@@ -142,30 +213,53 @@ export const attachSubscriptionDetails = async (
       return next();
     }
 
-    // Find active subscription for user
+    // Find active or grace period subscription for user
     const subscription = await SubscriptionModel.findOne({
       userId,
-      status: "active",
+      status: { $in: ["active", "expiring_soon", "grace_period"] },
     }).populate("planId");
 
-    if (subscription && subscription.endDate > new Date()) {
-      // Attach subscription details to request
-      (req as any).subscription = {
-        id: subscription._id,
-        userId: subscription.userId,
-        planId: subscription.planId,
-        tier: subscription.tier,
-        duration: subscription.duration,
-        status: subscription.status,
-        startDate: subscription.startDate,
-        endDate: subscription.endDate,
-        amount: subscription.amount,
-        daysRemaining: Math.ceil(
-          (subscription.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-        ),
-      };
+    const now = new Date();
 
-      (req as any).hasActiveSubscription = true;
+    if (subscription) {
+      const isInGracePeriod = subscription.status === "grace_period" || 
+        (subscription.endDate < now && subscription.graceEndDate && subscription.graceEndDate >= now);
+      
+      const isExpired = subscription.graceEndDate 
+        ? subscription.graceEndDate < now 
+        : subscription.endDate < now;
+
+      if (!isExpired) {
+        const daysRemaining = subscription.endDate > now 
+          ? Math.ceil((subscription.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          : 0;
+        
+        const graceDaysRemaining = subscription.graceEndDate && subscription.graceEndDate > now
+          ? Math.ceil((subscription.graceEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          : 0;
+
+        // Attach subscription details to request
+        (req as any).subscription = {
+          id: subscription._id,
+          userId: subscription.userId,
+          planId: subscription.planId,
+          tier: subscription.tier,
+          duration: subscription.duration,
+          status: subscription.status,
+          startDate: subscription.startDate,
+          endDate: subscription.endDate,
+          graceEndDate: subscription.graceEndDate,
+          amount: subscription.amount,
+          daysRemaining,
+          graceDaysRemaining,
+          isInGracePeriod,
+          isExpiringSoon: daysRemaining <= 7 && daysRemaining > 0,
+        };
+
+        (req as any).hasActiveSubscription = true;
+      } else {
+        (req as any).hasActiveSubscription = false;
+      }
     } else {
       (req as any).hasActiveSubscription = false;
     }

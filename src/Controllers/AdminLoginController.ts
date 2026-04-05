@@ -41,6 +41,7 @@ import { Feedback } from "./offerController";
 import OfferModel from "../Models/offerModal";
 import EarningModel from "../Models/Earning";
 import Wallet from "../Models/Wallet";
+import SubscriptionModel from "../Models/SubscriptionModel";
 export const adminSignup = async (
   req: Request,
   res: Response,
@@ -456,9 +457,7 @@ export const listOfBusinessUser = async (
 ): Promise<void> => {
   const { page, limit } = req.query;
   const query = { userType: "business", isDeleted: false, documentVerified: true };
-  // const sort = { createdAt: -1 };
   const sort: { [key: string]: SortOrder } = { createdAt: -1 };
-
 
   try {
     let users, totalCount;
@@ -474,18 +473,63 @@ export const listOfBusinessUser = async (
       ]);
 
       const userIds = users.map((u) => u._id);
+      
+      // Fetch wallets
       const wallets = await Wallet.find({ user_id: { $in: userIds } }).lean();
       const walletMap: Record<string, any> = wallets.reduce((acc: Record<string, any>, w: any) => {
         acc[w.user_id.toString()] = w;
         return acc;
       }, {});
-      const usersWithWallet = users.map((u: any) => ({
-        ...u.toObject(),
-        wallet: walletMap[u._id.toString()] || null,
-      }));
+
+      // Fetch active subscriptions for all users
+      const subscriptions = await SubscriptionModel.find({
+        userId: { $in: userIds },
+        status: { $in: ["active", "expiring_soon", "grace_period", "pending"] },
+      }).populate("planId").lean();
+      
+      const subscriptionMap: Record<string, any> = subscriptions.reduce((acc: Record<string, any>, sub: any) => {
+        acc[sub.userId.toString()] = sub;
+        return acc;
+      }, {});
+
+      const usersWithDetails = users.map((u: any) => {
+        const subscription = subscriptionMap[u._id.toString()];
+        const now = new Date();
+        let daysRemaining = 0;
+        let graceDaysRemaining = 0;
+        
+        if (subscription?.endDate) {
+          daysRemaining = Math.max(0, Math.ceil((new Date(subscription.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+        }
+        if (subscription?.graceEndDate) {
+          graceDaysRemaining = Math.max(0, Math.ceil((new Date(subscription.graceEndDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+        }
+
+        return {
+          ...u.toObject(),
+          wallet: walletMap[u._id.toString()] || null,
+          subscription: subscription ? {
+            _id: subscription._id,
+            tier: subscription.tier,
+            status: subscription.status,
+            duration: subscription.duration,
+            amount: subscription.amount,
+            currency: subscription.currency,
+            startDate: subscription.startDate,
+            endDate: subscription.endDate,
+            graceEndDate: subscription.graceEndDate,
+            isInGracePeriod: subscription.isInGracePeriod,
+            paymentStatus: subscription.paymentStatus,
+            razorpayPaymentId: subscription.razorpayPaymentId,
+            planName: subscription.planId?.name || "Business Plan",
+            daysRemaining,
+            graceDaysRemaining,
+          } : null,
+        };
+      });
 
       resStatusData(res, "success", "Business users fetched successfully", {
-        users: usersWithWallet,
+        users: usersWithDetails,
         totalCount,
         totalPages: Math.ceil(totalCount / pageSize),
         currentPage: pageNumber,
@@ -495,18 +539,61 @@ export const listOfBusinessUser = async (
       totalCount = users.length;
 
       const userIds = users.map((u) => u._id);
+      
       const wallets = await Wallet.find({ user_id: { $in: userIds } }).lean();
       const walletMap: Record<string, any> = wallets.reduce((acc: Record<string, any>, w: any) => {
         acc[w.user_id.toString()] = w;
         return acc;
       }, {});
-      const usersWithWallet = users.map((u: any) => ({
-        ...u.toObject(),
-        wallet: walletMap[u._id.toString()] || null,
-      }));
+
+      const subscriptions = await SubscriptionModel.find({
+        userId: { $in: userIds },
+        status: { $in: ["active", "expiring_soon", "grace_period", "pending"] },
+      }).populate("planId").lean();
+      
+      const subscriptionMap: Record<string, any> = subscriptions.reduce((acc: Record<string, any>, sub: any) => {
+        acc[sub.userId.toString()] = sub;
+        return acc;
+      }, {});
+
+      const usersWithDetails = users.map((u: any) => {
+        const subscription = subscriptionMap[u._id.toString()];
+        const now = new Date();
+        let daysRemaining = 0;
+        let graceDaysRemaining = 0;
+        
+        if (subscription?.endDate) {
+          daysRemaining = Math.max(0, Math.ceil((new Date(subscription.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+        }
+        if (subscription?.graceEndDate) {
+          graceDaysRemaining = Math.max(0, Math.ceil((new Date(subscription.graceEndDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+        }
+
+        return {
+          ...u.toObject(),
+          wallet: walletMap[u._id.toString()] || null,
+          subscription: subscription ? {
+            _id: subscription._id,
+            tier: subscription.tier,
+            status: subscription.status,
+            duration: subscription.duration,
+            amount: subscription.amount,
+            currency: subscription.currency,
+            startDate: subscription.startDate,
+            endDate: subscription.endDate,
+            graceEndDate: subscription.graceEndDate,
+            isInGracePeriod: subscription.isInGracePeriod,
+            paymentStatus: subscription.paymentStatus,
+            razorpayPaymentId: subscription.razorpayPaymentId,
+            planName: subscription.planId?.name || "Business Plan",
+            daysRemaining,
+            graceDaysRemaining,
+          } : null,
+        };
+      });
 
       resStatusData(res, "success", "All business users fetched successfully", {
-        users: usersWithWallet,
+        users: usersWithDetails,
         totalCount,
       });
     }

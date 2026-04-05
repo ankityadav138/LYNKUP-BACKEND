@@ -5,10 +5,12 @@ export interface SubscriptionData extends Document {
   planId: ObjectId; // Reference to SubscriptionPlan
   tier: string; // "silver", "gold", "platinum", "diamond"
   duration: number; // 1, 3, 6, 12 (months)
-  status: "pending" | "active" | "expired" | "cancelled";
+  status: "pending" | "active" | "expiring_soon" | "grace_period" | "expired" | "cancelled";
   paymentStatus: "pending" | "completed" | "failed";
   startDate: Date;
   endDate: Date;
+  graceEndDate?: Date; // 3 days after endDate
+  isInGracePeriod?: boolean;
   amount: number; // amount paid in INR
   currency: string; // "INR"
   razorpayOrderId: string;
@@ -58,7 +60,7 @@ const subscriptionSchema = new Schema<SubscriptionData>(
     status: {
       type: String,
       required: true,
-      enum: ["pending", "active", "expired", "cancelled"],
+      enum: ["pending", "active", "expiring_soon", "grace_period", "expired", "cancelled"],
       default: "pending",
       index: true,
     },
@@ -75,6 +77,14 @@ const subscriptionSchema = new Schema<SubscriptionData>(
     endDate: {
       type: Date,
       required: false,
+    },
+    graceEndDate: {
+      type: Date,
+      required: false,
+    },
+    isInGracePeriod: {
+      type: Boolean,
+      default: false,
     },
     amount: {
       type: Number,

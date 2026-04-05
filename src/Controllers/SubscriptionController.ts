@@ -1,12 +1,17 @@
 import { Request, Response } from "express";
 import crypto from "crypto";
+import mongoose from "mongoose";
 import Razorpay from "razorpay";
 import User from "../Models/UserModel";
 import SubscriptionModel from "../Models/SubscriptionModel";
 import SubscriptionPlanModel from "../Models/SubscriptionPlanModel";
+import InvoiceModel from "../Models/InvoiceModel";
 import { resStatusData } from "../Responses/Response";
 import { invoiceService } from "../Services/InvoiceService";
 import { subscriptionNotificationService } from "../Services/SubscriptionNotificationService";
+
+// Grace period in days
+const GRACE_PERIOD_DAYS = 3;
 
 // Initialize Razorpay instance
 const razorpay = new Razorpay({
@@ -129,23 +134,40 @@ export const createSubscriptionOrder = async (
       },
     });
 
-    // Create Subscription record with "pending" status
-    const subscription = await SubscriptionModel.create({
+    // Reuse existing pending subscription if one exists, otherwise create new
+    let subscription = await SubscriptionModel.findOne({
       userId,
-      planId,
-      tier,
-      duration: selectedTier.duration,
       status: "pending",
       paymentStatus: "pending",
-      amount: selectedTier.price,
-      currency: "INR",
-      razorpayOrderId: razorpayOrder.id,
-      metadata: {
-        userAgent: req.get("user-agent"),
-        ipAddress: req.ip,
-        source: "web",
-      },
     });
+
+    if (subscription) {
+      subscription.planId = planId as any;
+      subscription.tier = tier;
+      subscription.duration = selectedTier.duration;
+      subscription.amount = selectedTier.price;
+      subscription.razorpayOrderId = razorpayOrder.id;
+      subscription.razorpayPaymentId = undefined;
+      subscription.razorpaySignature = undefined;
+      await subscription.save();
+    } else {
+      subscription = await SubscriptionModel.create({
+        userId,
+        planId,
+        tier,
+        duration: selectedTier.duration,
+        status: "pending",
+        paymentStatus: "pending",
+        amount: selectedTier.price,
+        currency: "INR",
+        razorpayOrderId: razorpayOrder.id,
+        metadata: {
+          userAgent: req.get("user-agent"),
+          ipAddress: req.ip,
+          source: "web",
+        },
+      });
+    }
 
     resStatusData(res, "success", "Order created successfully", {
       orderId: razorpayOrder.id,
@@ -288,76 +310,120 @@ export const verifySubscription = async (
     const endDate = new Date();
     endDate.setMonth(endDate.getMonth() + subscription.duration);
 
+    // Set grace period end date (3 days after endDate)
+    const graceEndDate = new Date(endDate);
+    graceEndDate.setDate(graceEndDate.getDate() + GRACE_PERIOD_DAYS);
+
     subscription.startDate = startDate;
     subscription.endDate = endDate;
+    subscription.graceEndDate = graceEndDate;
+    subscription.isInGracePeriod = false;
 
-    await subscription.save();
+    // Use transaction to ensure User and Subscription are updated atomically
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    // Send push notification about activation
-    await subscriptionNotificationService.notifyUserBySubscriptionStatus(
-      userId.toString(),
-      "active"
-    );
+    try {
+      await subscription.save({ session });
 
-    // Expire any old active subscriptions for this user
-    await SubscriptionModel.updateMany(
-      {
-        userId,
-        _id: { $ne: subscription._id }, // Not the current subscription
-        status: "active",
-      },
-      {
-        $set: {
-          status: "expired",
-          cancellationReason: "Replaced by new subscription",
-          cancellationDate: new Date(),
+      // Expire any old active subscriptions for this user
+      await SubscriptionModel.updateMany(
+        {
+          userId,
+          _id: { $ne: subscription._id },
+          status: { $in: ["active", "expiring_soon", "grace_period"] },
         },
-      }
-    );
+        {
+          $set: {
+            status: "expired",
+            cancellationReason: "Replaced by new subscription",
+            cancellationDate: new Date(),
+          },
+        },
+        { session }
+      );
 
-    // Get user for invoice details
-    const user = await User.findById(userId);
-    const plan = await SubscriptionPlanModel.findOne({ isActive: true });
+      // Update user with subscription details
+      await User.findByIdAndUpdate(
+        userId,
+        {
+          currentSubscriptionId: subscription._id,
+          hasActiveSubscription: true,
+          subscriptionExpiryDate: endDate,
+        },
+        { session, new: true }
+      );
 
-    // Send invoice emails
-    if (user && plan) {
-      const invoiceDetails = {
-        invoiceId: `INV-${Date.now()}-${userId.toString().slice(-6).toUpperCase()}`,
-        userName: `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() || "User",
-        userEmail: user.email || "noreply@lynkup.com",
-        subscriptionId: (subscription._id as any).toString(),
-        planName: plan.name,
-        tier: subscription.tier,
-        amount: subscription.amount,
-        currency: subscription.currency || "INR",
-        startDate: subscription.startDate,
-        endDate: subscription.endDate,
-        duration: subscription.duration,
-        discount: 0,
-        features: plan.features,
-        company: "LYNKUP",
-      };
-
-      Promise.all([
-        invoiceService.sendInvoiceToUser(invoiceDetails),
-        invoiceService.sendAdminNotification(invoiceDetails),
-      ]).catch(err => console.error('[Invoice] Error sending invoice:', err));
+      await session.commitTransaction();
+      console.log("✅ Subscription and User updated atomically");
+    } catch (txError) {
+      await session.abortTransaction();
+      console.error("❌ Transaction failed, rolling back:", txError);
+      throw txError;
+    } finally {
+      session.endSession();
     }
 
-    // Update user with subscription details
-    const userUpdate = {
-      currentSubscriptionId: subscription._id,
-      hasActiveSubscription: true,
-      subscriptionExpiryDate: endDate,
-    };
+    // Send push notification about activation (non-blocking)
+    try {
+      await subscriptionNotificationService.notifyUserBySubscriptionStatus(
+        userId.toString(),
+        "active"
+      );
+    } catch (notifErr) {
+      console.error("[Notification] Failed to send push notification:", notifErr);
+    }
 
-    console.log("Updating user with subscription details:", userUpdate);
-    const updatedUser = await User.findByIdAndUpdate(userId, userUpdate, { new: true });
-    console.log("User updated successfully:", {
-      userId: updatedUser?._id,
-      hasActiveSubscription: updatedUser?.hasActiveSubscription,
-      currentSubscriptionId: updatedUser?.currentSubscriptionId,
-    });
+    // Create Invoice record and send email (non-blocking)
+    try {
+      const user = await User.findById(userId);
+      const plan = await SubscriptionPlanModel.findOne({ isActive: true });
+
+      if (user) {
+        const planName = plan?.name || "Business Plan";
+        
+        // Create invoice in database (auto-generates sequential number)
+        const invoice = await InvoiceModel.create({
+          userId: userId,
+          subscriptionId: subscription._id,
+          type: "subscription",
+          amount: subscription.amount,
+          currency: subscription.currency || "INR",
+          razorpayPaymentId: razorpay_payment_id,
+          razorpayOrderId: razorpay_order_id,
+          planName: planName,
+          billingEmail: user.email || "noreply@lynkup.com",
+          invoiceDate: new Date(),
+        });
+
+        console.log(`[Invoice] Created invoice: ${invoice.invoiceNumber}`);
+
+        const invoiceDetails = {
+          invoiceId: invoice.invoiceNumber,
+          userName: `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() || "User",
+          userEmail: user.email || "noreply@lynkup.com",
+          subscriptionId: (subscription._id as any).toString(),
+          planName: planName,
+          tier: subscription.tier,
+          amount: subscription.amount,
+          currency: subscription.currency || "INR",
+          startDate: subscription.startDate,
+          endDate: subscription.endDate,
+          duration: subscription.duration,
+          discount: 0,
+          features: plan?.features || [],
+          company: "LYNKUP",
+        };
+
+        Promise.all([
+          invoiceService.sendInvoiceToUser(invoiceDetails),
+          invoiceService.sendAdminNotification(invoiceDetails),
+        ]).catch(err => console.error('[Invoice] Error sending invoice emails:', err));
+      }
+    } catch (invoiceErr) {
+      console.error("[Invoice] Failed to create invoice:", invoiceErr);
+      // Don't throw - subscription is already activated
+    }
 
     // Prepare response
     resStatusData(res, "success", "Subscription activated successfully", {
@@ -367,6 +433,7 @@ export const verifySubscription = async (
         status: subscription.status,
         startDate: subscription.startDate,
         endDate: subscription.endDate,
+        graceEndDate: subscription.graceEndDate,
         tier: subscription.tier,
         duration: subscription.duration,
         amount: subscription.amount,
@@ -437,6 +504,11 @@ export const getSubscriptionDetails = async (
       (subscription.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
     );
 
+    // Calculate grace days remaining if applicable
+    const graceDaysRemaining = subscription.graceEndDate 
+      ? Math.max(0, Math.ceil((subscription.graceEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      : 0;
+
     resStatusData(res, "success", "Subscription details retrieved", {
       subscription: {
         _id: subscription._id,
@@ -446,11 +518,19 @@ export const getSubscriptionDetails = async (
         status: subscription.status,
         startDate: subscription.startDate,
         endDate: subscription.endDate,
+        graceEndDate: subscription.graceEndDate,
+        isInGracePeriod: subscription.isInGracePeriod,
         daysRemaining: daysRemaining,
+        graceDaysRemaining: graceDaysRemaining,
         duration: subscription.duration,
         amount: subscription.amount,
         currency: subscription.currency,
         isExpiring: daysRemaining <= 7, // Flag if expiring in 7 days
+        // Transaction details
+        razorpayPaymentId: subscription.razorpayPaymentId,
+        razorpayOrderId: subscription.razorpayOrderId,
+        paymentStatus: subscription.paymentStatus,
+        planName: (subscription.planId as any)?.name || "Business Plan",
       },
     });
   } catch (error: any) {
@@ -676,10 +756,10 @@ export const getSubscriptionStatus = async (
       return;
     }
 
-    // Find active subscription
+    // Find active, expiring_soon, or grace_period subscription
     const subscription = await SubscriptionModel.findOne({
       userId,
-      status: "active",
+      status: { $in: ["active", "expiring_soon", "grace_period"] },
     }).populate("planId");
 
     if (!subscription) {
@@ -691,19 +771,38 @@ export const getSubscriptionStatus = async (
       return;
     }
 
-    // Check if expired
     const now = new Date();
-    const isExpired = subscription.endDate < now;
 
-    if (isExpired) {
-      // Mark as expired
-      subscription.status = "expired";
-      await subscription.save();
+    // Check if fully expired (past grace period)
+    const isFullyExpired = subscription.graceEndDate 
+      ? subscription.graceEndDate < now 
+      : subscription.endDate < now;
 
-      await User.findByIdAndUpdate(userId, {
-        hasActiveSubscription: false,
-        currentSubscriptionId: null,
-      });
+    if (isFullyExpired) {
+      // Mark as expired using transaction
+      const session = await mongoose.startSession();
+      session.startTransaction();
+
+      try {
+        subscription.status = "expired";
+        subscription.isInGracePeriod = false;
+        await subscription.save({ session });
+
+        await User.findByIdAndUpdate(
+          userId,
+          {
+            hasActiveSubscription: false,
+            currentSubscriptionId: null,
+          },
+          { session }
+        );
+
+        await session.commitTransaction();
+      } catch (txError) {
+        await session.abortTransaction();
+      } finally {
+        session.endSession();
+      }
 
       resStatusData(res, "success", "Subscription expired", {
         hasActiveSubscription: false,
@@ -711,29 +810,41 @@ export const getSubscriptionStatus = async (
         subscriptionDetails: {
           status: "expired",
           expiryDate: subscription.endDate,
+          graceEndDate: subscription.graceEndDate,
           tier: subscription.tier,
         },
       });
       return;
     }
 
-    // Calculate days remaining
-    const daysRemaining = Math.ceil(
-      (subscription.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    // Check if in grace period
+    const isInGracePeriod = subscription.endDate < now && 
+      subscription.graceEndDate && subscription.graceEndDate >= now;
 
-    resStatusData(res, "success", "Active subscription found", {
+    // Calculate days remaining
+    const daysRemaining = subscription.endDate > now
+      ? Math.ceil((subscription.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+
+    const graceDaysRemaining = subscription.graceEndDate && subscription.graceEndDate > now
+      ? Math.ceil((subscription.graceEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+
+    resStatusData(res, "success", isInGracePeriod ? "Subscription in grace period" : "Active subscription found", {
       hasActiveSubscription: true,
+      isInGracePeriod,
       subscriptionDetails: {
         id: subscription._id,
         tier: subscription.tier,
         duration: subscription.duration,
-        status: subscription.status,
+        status: isInGracePeriod ? "grace_period" : subscription.status,
         startDate: subscription.startDate,
         endDate: subscription.endDate,
+        graceEndDate: subscription.graceEndDate,
         expiryDate: subscription.endDate,
         daysRemaining,
-        requiresRenewal: daysRemaining <= 7,
+        graceDaysRemaining,
+        requiresRenewal: daysRemaining <= 7 || isInGracePeriod,
         amount: subscription.amount,
         planName: (subscription.planId as any)?.name || "Business Plan",
       },

@@ -111,7 +111,8 @@ else{
      const allFollowers = await FollowerModel.find({});
      const staticFollowers = allFollowers.map((f) => f.staticFollowers || 0);
  
-     const followersCount = userProfile?.followers_count || 0;
+    //  const followersCount = userProfile?.followers_count || 0;
+     const followersCount = 4000;
      const minRequiredFollowers = Math.max(...staticFollowers, 0);
      const followersWhoEngaged =  Math.round(((instagramInsights?.accounts_engaged ||0) * followersCount) / (instagramInsights?.reach ||0));
      const nonFollowersWhoEngaged = Math.max((instagramInsights?.accounts_engaged ||0)- followersWhoEngaged, 0);

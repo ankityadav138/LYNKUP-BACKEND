@@ -25,6 +25,7 @@ import {
 import { recordEarning, getUserEarnings } from '../Controllers/EarningController';
 import { getAdminBusinessWalletTransactions } from '../Controllers/WalletController';
 import { triggerWithdrawalEligibilityUpdate } from "../Cron/SubscriptionCron";
+import { getAllInvoices, getInvoiceById, getInvoicesByUser, exportInvoices } from "../Controllers/InvoiceController";
 export const adminRoutes = (app: Express): void => {
   // ⚠️ AWS S3 disabled - Image upload temporarily removed
   app.post("/admin/signup", /* upload.single('profileImage'), */ errCatch(adminSignup));
@@ -115,6 +116,12 @@ export const adminRoutes = (app: Express): void => {
   app.get("/admin/payouts/dashboard", adminMiddleware, errCatch(getPayoutDashboard));
   app.post("/admin/payouts/generate-invoice/:booking_id", adminMiddleware, errCatch(generateGSTInvoice));
   app.get("/admin/payouts/download-invoice/:booking_id", adminMiddleware, errCatch(downloadPayoutInvoicePDF));
+
+  // Invoice Management (Subscription Invoices)
+  app.get("/admin/invoices", adminMiddleware, errCatch(getAllInvoices));
+  app.get("/admin/invoices/export", adminMiddleware, errCatch(exportInvoices));
+  app.get("/admin/invoices/user/:userId", adminMiddleware, errCatch(getInvoicesByUser));
+  app.get("/admin/invoices/:invoiceId", adminMiddleware, errCatch(getInvoiceById));
 
   // PHASE: Subscription Notifications (Admin triggers)
   app.post("/admin/notifications/unsubscribed-users", adminMiddleware, async (req, res) => {

@@ -1,4 +1,5 @@
 import cron from "node-cron";
+import mongoose from "mongoose";
 import SubscriptionModel from "../Models/SubscriptionModel";
 import User from "../Models/UserModel";
 import OfferModel from "../Models/offerModal";
@@ -6,8 +7,14 @@ import { invoiceService } from "../Services/InvoiceService";
 import { sendNotification } from "../Controllers/NotificationController";
 import { subscriptionNotificationService } from "../Services/SubscriptionNotificationService";
 
+// Grace period in days
+const GRACE_PERIOD_DAYS = 3;
+
 /**
  * Check for expired subscriptions and update their status
+ * Handles grace period transitions:
+ * - active → grace_period (when endDate passes)
+ * - grace_period → expired (when graceEndDate passes)
  * Runs daily at 00:00 UTC
  */
 export const checkExpiredSubscriptions = async () => {
@@ -17,51 +24,178 @@ export const checkExpiredSubscriptions = async () => {
       new Date()
     );
 
-    // Find all active subscriptions where endDate is past
-    const expiredSubscriptions = await SubscriptionModel.find({
-      status: "active",
-      endDate: { $lt: new Date() },
+    const now = new Date();
+    let totalProcessed = 0;
+
+    // Step 1: Move active subscriptions past endDate into grace_period
+    const subscriptionsEnteringGrace = await SubscriptionModel.find({
+      status: { $in: ["active", "expiring_soon"] },
+      endDate: { $lt: now },
+      $or: [
+        { graceEndDate: { $gte: now } },
+        { graceEndDate: { $exists: false } }
+      ]
     });
 
-    if (expiredSubscriptions.length === 0) {
-      console.log("[Subscription Cron] No expired subscriptions found");
-      return { count: 0 };
+    for (const subscription of subscriptionsEnteringGrace) {
+      const session = await mongoose.startSession();
+      session.startTransaction();
+
+      try {
+        // If no graceEndDate set, calculate it now (for legacy records)
+        if (!subscription.graceEndDate) {
+          const graceEnd = new Date(subscription.endDate);
+          graceEnd.setDate(graceEnd.getDate() + GRACE_PERIOD_DAYS);
+          subscription.graceEndDate = graceEnd;
+        }
+
+        subscription.status = "grace_period";
+        subscription.isInGracePeriod = true;
+        await subscription.save({ session });
+
+        // User can still access during grace period, just warn them
+        await session.commitTransaction();
+
+        // Send grace period notification
+        const user = await User.findById(subscription.userId);
+        if (user && user.playerId && user.playerId.length > 0) {
+          await sendNotification(
+            user.playerId,
+            "⚠️ Subscription Grace Period",
+            `Your subscription has ended. You have ${GRACE_PERIOD_DAYS} days to renew before losing access.`,
+            "",
+            "subscription_grace_period"
+          );
+        }
+
+        console.log(
+          `[Subscription Cron] Moved to grace period: user ${subscription.userId}`
+        );
+        totalProcessed++;
+      } catch (txError) {
+        await session.abortTransaction();
+        console.error("[Subscription Cron] Grace period transaction failed:", txError);
+      } finally {
+        session.endSession();
+      }
     }
 
-    // Update each expired subscription
-    for (const subscription of expiredSubscriptions) {
-      subscription.status = "expired";
-      await subscription.save();
+    // Step 2: Expire subscriptions past graceEndDate
+    const subscriptionsToExpire = await SubscriptionModel.find({
+      status: "grace_period",
+      graceEndDate: { $lt: now },
+    });
 
-      // Get user details with playerId
-      const user = await User.findByIdAndUpdate(subscription.userId, {
-        hasActiveSubscription: false,
-        currentSubscriptionId: null,
-      });
+    for (const subscription of subscriptionsToExpire) {
+      const session = await mongoose.startSession();
+      session.startTransaction();
 
-      // Send push notification about expiration
-      if (user && user.playerId && user.playerId.length > 0) {
-        await sendNotification(
-          user.playerId,
-          "Subscription Expired",
-          "Your subscription has expired. Renew now to continue enjoying premium features!",
-          "", // No image
-          "subscription_expired"
+      try {
+        subscription.status = "expired";
+        subscription.isInGracePeriod = false;
+        await subscription.save({ session });
+
+        // Update user atomically
+        await User.findByIdAndUpdate(
+          subscription.userId,
+          {
+            hasActiveSubscription: false,
+            currentSubscriptionId: null,
+          },
+          { session }
         );
-      }
 
-      console.log(
-        `[Subscription Cron] Expired subscription for user ${subscription.userId}`
-      );
+        await session.commitTransaction();
+
+        // Send expiration notification
+        const user = await User.findById(subscription.userId);
+        if (user && user.playerId && user.playerId.length > 0) {
+          await sendNotification(
+            user.playerId,
+            "Subscription Expired",
+            "Your subscription and grace period have ended. Renew now to continue enjoying premium features!",
+            "",
+            "subscription_expired"
+          );
+        }
+
+        console.log(
+          `[Subscription Cron] Expired subscription for user ${subscription.userId}`
+        );
+        totalProcessed++;
+      } catch (txError) {
+        await session.abortTransaction();
+        console.error("[Subscription Cron] Expiration transaction failed:", txError);
+      } finally {
+        session.endSession();
+      }
+    }
+
+    // Step 3: Also handle legacy expired subscriptions (no grace period set)
+    const legacyExpired = await SubscriptionModel.find({
+      status: "active",
+      endDate: { $lt: now },
+      graceEndDate: { $exists: false },
+    });
+
+    for (const subscription of legacyExpired) {
+      const session = await mongoose.startSession();
+      session.startTransaction();
+
+      try {
+        subscription.status = "expired";
+        await subscription.save({ session });
+
+        await User.findByIdAndUpdate(
+          subscription.userId,
+          {
+            hasActiveSubscription: false,
+            currentSubscriptionId: null,
+          },
+          { session }
+        );
+
+        await session.commitTransaction();
+        totalProcessed++;
+      } catch (txError) {
+        await session.abortTransaction();
+      } finally {
+        session.endSession();
+      }
     }
 
     console.log(
-      `[Subscription Cron] Processed ${expiredSubscriptions.length} expired subscriptions`
+      `[Subscription Cron] Processed ${totalProcessed} subscription status changes`
     );
 
-    return { count: expiredSubscriptions.length };
+    return { count: totalProcessed };
   } catch (error) {
     console.error("[Subscription Cron] Error checking expired subscriptions:", error);
+    return { count: 0, error };
+  }
+};
+
+/**
+ * Mark subscriptions as expiring_soon when within 7 days of endDate
+ * Runs daily at 06:00 UTC
+ */
+export const markExpiringSoonSubscriptions = async () => {
+  try {
+    const now = new Date();
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const result = await SubscriptionModel.updateMany(
+      {
+        status: "active",
+        endDate: { $gt: now, $lte: sevenDaysFromNow },
+      },
+      { $set: { status: "expiring_soon" } }
+    );
+
+    console.log(`[Subscription Cron] Marked ${result.modifiedCount} subscriptions as expiring_soon`);
+    return { count: result.modifiedCount };
+  } catch (error) {
+    console.error("[Subscription Cron] Error marking expiring soon:", error);
     return { count: 0, error };
   }
 };
@@ -288,6 +422,12 @@ export const startSubscriptionCronJobs = () => {
   });
   console.log("[Subscription Cron] ✓ Scheduled: Check expired subscriptions (00:00 UTC)");
 
+  // Mark subscriptions as expiring_soon daily at 06:00 UTC
+  cron.schedule("0 6 * * *", () => {
+    markExpiringSoonSubscriptions();
+  });
+  console.log("[Subscription Cron] ✓ Scheduled: Mark expiring soon subscriptions (06:00 UTC)");
+
   // Send expiry reminders daily at 08:00 UTC
   cron.schedule("0 8 * * *", () => {
     sendExpiryReminders();
@@ -320,6 +460,10 @@ export const startSubscriptionCronJobs = () => {
  */
 export const triggerExpiryCheck = async () => {
   return await checkExpiredSubscriptions();
+};
+
+export const triggerExpiringSoonCheck = async () => {
+  return await markExpiringSoonSubscriptions();
 };
 
 export const triggerReminderCheck = async () => {
