@@ -3140,11 +3140,18 @@ export const showOfferUser = async (
     const bookedOffers = await BookingModel.find({ userId }).select("offerId");
     const bookedOfferIds = bookedOffers.map((booking) => booking.offerId);
     let dateFilter: any = {};
+    const today = new Date(new Date().toDateString());
+
     if (selectedDate) {
       const selected = new Date(new Date(selectedDate as string).toDateString());
       dateFilter = {
         "valid.start": { $lte: selected },
         "valid.end": { $gte: selected },
+      };
+    } else {
+      // Default: only show offers that haven't expired
+      dateFilter = {
+        "valid.end": { $gte: today },
       };
     }
 
