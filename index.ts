@@ -17,86 +17,57 @@ import axios from "axios";
 dotenv.config();
 const app = express();
 
-// Import all models AFTER dotenv config to ensure they're registered with mongoose
+// Import all models AFTER dotenv config
 import "./src/Models/UserModel";
 import "./src/Models/Booking";
 import "./src/Models/offerModal";
 import "./src/Models/Wallet";
 import "./src/Models/WalletTransaction";
 
-// CORS configuration - allows specific origins and all others
-const allowedOrigins = [
-  "https://unrefulgently-epiphragmal-abram.ngrok-free.dev", // Ngrok frontend
-  "https://lynkup.co.in",
-  "https://www.lynkup.co.in",
-  "http://localhost:3000",
-  "http://localhost:5173",
-  // Add more specific origins as needed
-];
-
-const corsOptions = {
-  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    // Allow all origins (including the specific ones listed above)
-    callback(null, true);
-  },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true, // Can use credentials when using function-based origin
-  optionsSuccessStatus: 200,
-  maxAge: 3600, // Cache preflight requests for 1 hour
-};
-
-app.use(cors(corsOptions));
+// ✅ CORS - Allow all origins (DEV FRIENDLY)
+app.use(
+  cors({
+    origin: true,        // allows all origins dynamically
+    credentials: true,   // allow cookies/auth headers
+  })
+);
 
 app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-// Define routes
+// Routes
 userRoutes(app);
 adminRoutes(app);
 app.use("/api/subscription", subscriptionRoutes);
-payoutRoutes(app); // Phase 3: Manual payout management
+payoutRoutes(app);
 
+// DB Connection
 mongodbConnection();
 
-// Start subscription cron jobs after database connection
+// Cron Jobs
 startSubscriptionCronJobs();
-
-// updateOfferStatus()
 cron.schedule("0 0 * * *", updateOfferStatus);
 // cron.schedule("* * * * *", updateOfferStatus);
 
+// Error Handler
 app.use(errorHandler);
 
+// Test route
 app.get("/", (req: Request, res: Response) => {
   console.log("Root endpoint hit");
-  res.send("SocialMe Backend!");
+  res.send("TEST BACKEND IS WORKING");
 });
 
 // Instagram OAuth callback
 app.get("/auth/instagram/callback", async (req, res) => {
   const { code } = req.query;
   console.log(code, "object");
+
   try {
-    // Exchange code for access token
-    // const tokenResponse:any = await axios.post(
-    //   "https://api.instagram.com/oauth/access_token",
-    //   {
-    //     client_id: "1015452860015692",
-    //     client_secret: "76a8b193787892f6bf2459abeb935d7b",
-    //     grant_type: "authorization_code",
-    //     redirect_uri: "https://lynkupapi.lynkup.co.in/auth/instagram/callback",
-    //     code,
-    //   }
-    // );
-    // console.log(tokenResponse.data);
-    
-    // Return token to your app
-    res.redirect(`https://socialmeapi.testenvapp.com/auth/instagram/callback1?code=${code}`);
+    res.redirect(
+      `https://socialmeapi.testenvapp.com/auth/instagram/callback1?code=${code}`
+    );
   } catch (error) {
     console.log(error);
     res.redirect("lynkup://auth?error=instagram_failed");
@@ -105,10 +76,8 @@ app.get("/auth/instagram/callback", async (req, res) => {
 
 const port = process.env.PORT || 8089;
 
-// ⚠️ Redis disabled - Starting server without Redis connection
+// Start server
 app.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
-  console.log(`CORS enabled for:`);
-  console.log(`  - https://unrefulgently-epiphragmal-abram.ngrok-free.dev`);
-  console.log(`  - All other origins`);
+  console.log(`CORS enabled for ALL origins`);
 });
