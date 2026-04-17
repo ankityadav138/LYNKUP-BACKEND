@@ -87,7 +87,7 @@ else{
     try {
       const response = await axios.post('https://onesignal.com/api/v1/notifications', payload, {
         headers: {
-          Authorization: `Basic os_v2_app_ztmgvfvcmjhdrjm57bkru7acqae5cxic2d2etturfxyfkxnrjblqzmazwhk3nysmall4cokexrbphl222xto24gl7bmw7krwvfsnkvy`,
+          Authorization: `Basic os_v2_app_ztmgvfvcmjhdrjm57bkru7acqdf7phkyjzsua75fk4trs3wrfin2ybm7gjtkj45tv4hn32lpptvakyjhtswsluca4yug3sve5oiqrni`,
           'Content-Type': 'application/json',
         },
       });
