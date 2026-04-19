@@ -32,12 +32,12 @@ export const updateOfferStatus = async () => {
       { $set: { status: "live" } }
     );
 
-    console.log(`✅ Updated ${updatedByDays.modifiedCount} offers to 'ended' by 'days'.`);
-    console.log(`✅ Updated ${updatedByBookings.modifiedCount} offers to 'ended' by 'booking'.`);
-    console.log(`✅ Updated ${updatedToLive.modifiedCount} offers to 'live'.`);
+    console.log(`[Cron] Updated ${updatedByDays.modifiedCount} offers to 'ended' by 'days'`);
+    console.log(`[Cron] Updated ${updatedByBookings.modifiedCount} offers to 'ended' by 'booking'`);
+    console.log(`[Cron] Updated ${updatedToLive.modifiedCount} offers to 'live'`);
 
   } catch (error) {
-    console.error("❌ Error updating offers:", error);
+    console.error("[Cron] Error updating offers:", error);
   }
 };
 
@@ -61,16 +61,16 @@ export const markOffersEligibleForWithdrawal = async () => {
     );
 
     console.log(
-      `✅ Marked ${eligibleOffers.modifiedCount} offers as eligible for withdrawal.`
+      `[Cron] Marked ${eligibleOffers.modifiedCount} offers as eligible for withdrawal`
     );
   } catch (error) {
-    console.error("❌ Error marking offers eligible for withdrawal:", error);
+    console.error("[Cron] Error marking offers eligible for withdrawal:", error);
   }
 };
 
 // Run every day at midnight
 cron.schedule("0 0 * * *", () => {
-  console.log("🕐 Running daily cron jobs...");
+  console.log("[Cron] Running daily cron jobs...");
   updateOfferStatus();
   markOffersEligibleForWithdrawal();
 });

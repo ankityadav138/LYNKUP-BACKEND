@@ -39,7 +39,6 @@ export const storeOtp = async (storeKey: string, otp: string): Promise<void> => 
     }
     const key = `otp:${storeKey}`;
     await client.set(key, otp, { EX: 300 }); // 5 min expiration
-    console.log(`🔐 OTP stored: ${storeKey}`);
   } catch (error) {
     console.error("❌ Failed to store OTP:", error);
   }
@@ -64,9 +63,7 @@ export const storeDetails = async (storeKey: string, details: object): Promise<v
       return;
     }
     const key = `details:${storeKey}`;
-    console.log("Key",key)
     await client.set(key, JSON.stringify(details));
-    console.log(`💾 User details stored: ${storeKey}`);
   } catch (error) {
     console.error("❌ Failed to store details:", error);
   }

@@ -185,8 +185,6 @@ export const errCatch = (fn: any) => (req: Request, res: Response, next: NextFun
   //   return jwt.sign({ id }, process.env.JWT_SECRET||"JWT_SECRET", { expiresIn: "1w" });
   // }
   export const sendOtpOnMail = async (email: string, otp: string) => {
-    console.log(`Sending OTP to: ${email}`);
-  
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 587,
@@ -202,19 +200,14 @@ export const errCatch = (fn: any) => (req: Request, res: Response, next: NextFun
       subject: "Your OTP for Verification",
       html: `<p>Hi,</p><p>Your OTP is: <strong>${otp}</strong></p><p>It is valid for 3 minutes.</p>`,
     });
-  
-    console.log("OTP sent successfully to:", email);
   };
 export const sendOtpOnMailMailgun = async (email: string, otp: string) => {
-  console.log(`📧 [DEV MODE] OTP for ${email}: ${otp}`);
-  
-  // ⚠️ Temporary bypass for development - Skip actual email sending
+  // Skip actual email sending if Mailgun not configured
   if (!process.env.MAILGUN_API_KEY || process.env.MAILGUN_API_KEY.includes('1234567890')) {
-    console.log(`⚠️ Mailgun not configured - OTP logged above (check console)`);
-    return; // Skip email sending in development
+    console.error(`[Email] Mailgun not configured - OTP for ${email}: ${otp}`);
+    return;
   }
   
-  console.log(`Sending OTP to: ${email}`);
   const auth = {
     auth: {
       api_key: process.env.MAILGUN_API_KEY as string,
@@ -255,8 +248,6 @@ export const sendOtpOnMailMailgun = async (email: string, otp: string) => {
            </html>
     `,
   });
-
-  console.log("OTP sent successfully to:", email);
 };
 
   export const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();

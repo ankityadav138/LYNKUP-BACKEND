@@ -27,7 +27,7 @@ const InvoiceSchema = new Schema<IInvoice>(
     },
     userId: { 
       type: Schema.Types.ObjectId, 
-      ref: "User", 
+      ref: "users", 
       required: true, 
       index: true 
     },
@@ -77,14 +77,23 @@ const InvoiceSchema = new Schema<IInvoice>(
   { timestamps: true }
 );
 
-// Auto-generate sequential invoice number
+// Counter schema for atomic invoice numbering
+const CounterSchema = new Schema({
+  _id: { type: String, required: true },
+  seq: { type: Number, default: 0 },
+});
+const Counter = mongoose.models.Counter || mongoose.model("Counter", CounterSchema);
+
+// Auto-generate sequential invoice number (atomic counter to avoid duplicates)
 InvoiceSchema.pre("save", async function (next) {
   if (this.isNew && !this.invoiceNumber) {
     const year = new Date().getFullYear();
-    const count = await mongoose.model("Invoice").countDocuments({
-      invoiceNumber: new RegExp(`^LYNK-${year}-`)
-    });
-    this.invoiceNumber = `LYNK-${year}-${String(count + 1).padStart(6, "0")}`;
+    const counter = await Counter.findOneAndUpdate(
+      { _id: `invoice-${year}` },
+      { $inc: { seq: 1 } },
+      { upsert: true, new: true }
+    );
+    this.invoiceNumber = `LYNK-${year}-${String(counter.seq).padStart(6, "0")}`;
   }
   next();
 });

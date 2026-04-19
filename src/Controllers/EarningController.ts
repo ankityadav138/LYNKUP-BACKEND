@@ -6,7 +6,6 @@ import EarningModel from '../Models/Earning';
 export const recordEarning = async (req: Request, res: Response) => {
   try {
     const { userId, amount, method, date, brandName, offerName, description } = req.body;
-    console.log('💰 Recording payment:', { userId, amount, method, date, brandName, offerName, description });
 
     if (!userId || !amount || !method || !date) {
       res.status(400).json({ status: 'false', message: 'All fields are required.' });
@@ -28,8 +27,6 @@ export const recordEarning = async (req: Request, res: Response) => {
       ...(offerName && { offerName }),
       ...(description && { description }),
     });
-
-    console.log('✅ Earning record created:', earning._id);
 
     res.status(201).json({ status: 'success', message: 'Payment recorded successfully.', data: earning });
   } catch (error) {

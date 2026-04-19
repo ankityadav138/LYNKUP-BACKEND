@@ -60,10 +60,7 @@ export const createSubscriptionOrder = async (
 ): Promise<void> => {
   try {
     const userId = (req as any).user?.id || (req as any).user?._id;
-    console.log(req);
     const { planId, tier } = req.body;
-
-    console.log("planid and tier", planId, tier);
 
     // Validate input
     if (!userId) {
@@ -216,11 +213,6 @@ export const verifySubscription = async (
       resStatusData(res, "error", "User not authenticated", {});
       return;
     }
-    
-    console.log("PAYMENT INFORMATION",  razorpay_payment_id,
-      razorpay_order_id,
-      razorpay_signature,
-      subscriptionId,)
 
     // Validate required parameters
     if (!razorpay_payment_id || !razorpay_order_id) {
@@ -257,11 +249,9 @@ export const verifySubscription = async (
       }
     } else if (isTestMode) {
       // Method 2: Verify via Razorpay API (Test mode)
-      console.log("Test mode detected - verifying payment via Razorpay API");
       
       // Fetch payment details from Razorpay API
       const paymentResponse = await razorpay.payments.fetch(razorpay_payment_id);
-      console.log("Payment details from Razorpay:", paymentResponse);
       
       if (paymentResponse.status !== "captured") {
         resStatusData(res, "error", "Payment not successfully captured", {});
@@ -355,10 +345,9 @@ export const verifySubscription = async (
       );
 
       await session.commitTransaction();
-      console.log("✅ Subscription and User updated atomically");
     } catch (txError) {
       await session.abortTransaction();
-      console.error("❌ Transaction failed, rolling back:", txError);
+      console.error("[Subscription] Transaction failed, rolling back:", txError);
       throw txError;
     } finally {
       session.endSession();

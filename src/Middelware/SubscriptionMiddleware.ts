@@ -26,8 +26,14 @@ export const requireActiveSubscription = async (
       return;
     }
 
+    // Skip subscription check for admin users
+    const user = await User.findById(userId).select("userType documentVerified");
+    if (user && user.userType === "admin") {
+      next();
+      return;
+    }
+
     // Check if user is a business and if documents are verified
-    const user = await User.findById(userId);
     if (user && user.userType === "business" && !user.documentVerified) {
       resStatusData(
         res,
@@ -280,20 +286,5 @@ export const logSubscriptionActivity = async (
   res: Response,
   next: NextFunction
 ) => {
-  try {
-    const userId = (req as any).user?.id || (req as any).user?._id;
-
-    if (userId) {
-      console.log(`[Subscription Activity] ${req.method} ${req.path}`, {
-        userId,
-        timestamp: new Date(),
-        ipAddress: req.ip,
-        userAgent: req.get("user-agent"),
-      });
-    }
-
-    next();
-  } catch (error) {
-    next();
-  }
+  next();
 };

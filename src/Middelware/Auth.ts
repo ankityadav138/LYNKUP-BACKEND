@@ -13,7 +13,6 @@ export const adminMiddleware = async (
 ): Promise<any> => {
   try {
     const authHeader = req.header("Authorization");
-    console.log("Auth Header:", authHeader);
     if (!authHeader) return resStatus(res, "false", "Token not found");
     
     // Extract token by removing "Bearer " prefix
@@ -161,7 +160,6 @@ export const userMiddleware = async (
 ): Promise<any> => {
   try {
     const authHeader = req.header("Authorization");
-    console.log("Auth Header:", authHeader);
     if (!authHeader) {
        resStatus(res, "false", "Token not found");
     } else {
@@ -174,7 +172,6 @@ export const userMiddleware = async (
         }else{
          resStatus(res, "false", "Invalid token.");
       }}else{
-        console.log("Decoded",decoded)
       const userId = decoded.id;
       if (typeof userId !== "string" || userId.length !== 24) {
          resStatus(res, "false", "Invalid user ID format.");

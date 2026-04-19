@@ -24,7 +24,6 @@ export const InstagramMobileLogin = async (
 ): Promise<Response |void> => {
   // const { access_token = "", user_id = "" } = req.query;
   const access_token = req.query.access_token as string | undefined;
-  console.log(access_token, "access_token received from Instagram");
   if (!access_token) {
     res
       .status(400)
@@ -418,13 +417,11 @@ export const userLogin = async (
   next: NextFunction
 ): Promise<void> => {
 
-  console.log("USER IS LOGGING IN",req)
   const { email, password } = req.body;
   const user = await UserModel.findOne({ email });
   if (!user || user.userType !== "user") {
     resStatus(res, "false", "Invalid Credientials");
   } else {
-    console.log(user);
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       resStatus(res, "false", "Invalid Password");

@@ -75,7 +75,6 @@ export const adminLogin = async (
 ): Promise<void> => {
   const { email, password } = req.body;
   try {
-    console.log("request",req.body);
     const normalizedEmail = email.toLowerCase();
     const adminUser = await UserModel.findOne({ email: normalizedEmail, userType: "admin" });
     if (adminUser) {
@@ -181,9 +180,8 @@ export const businessSignup = async (
         // Send OTP email
         try {
           await sendOtpOnMailMailgun(email, otp);
-          console.log("✅ OTP resent successfully to:", email);
         } catch (emailError) {
-          console.error("❌ Failed to resend OTP email:", emailError);
+          console.error("Failed to resend OTP email:", emailError);
         }
         
         responsestatusmessage(
@@ -219,14 +217,12 @@ export const businessSignup = async (
       };
       
       const newUser = await UserModel.create(userDetails);
-      console.log("New user created:", newUser);
 
       // Send OTP email (OTP is already stored in user document)
       try {
         await sendOtpOnMailMailgun(email, otp);
-        console.log("✅ OTP email sent successfully to:", email);
       } catch (emailError) {
-        console.error("❌ Failed to send OTP email:", emailError);
+        console.error("Failed to send OTP email:", emailError);
         // Continue even if email fails - user can request resend
       }
 
@@ -288,7 +284,6 @@ export const verifyOtp = async (
   next: NextFunction
 ): Promise<void> => {
   const { email, otp } = req.body;
-  console.log(email, otp)
   if (!email || !otp) {
     resStatus(res, "false", "Email and OTP are required.");
     return;
@@ -304,7 +299,6 @@ export const verifyOtp = async (
   }
   
   const storedOtp = existingUser.otp;
-  console.log("🔍 Stored OTP:", storedOtp, "| Entered OTP:", otp);
   
   if (!storedOtp) {
     resStatus(res, "false", "OTP not found. Please request a new OTP.");
@@ -655,8 +649,6 @@ export const getUserByToken = async (
   let longLivedToken = tokenInDB;
   let finalToken = tokenInDB;
 
-  console.log("finalToken", finalToken);
-
   try {
     try {
       const exchange: any = await axios.get("https://graph.instagram.com/access_token", {
@@ -677,9 +669,8 @@ export const getUserByToken = async (
         lastTokenRefresh: now,
       });
 
-      console.log("Converted short-lived token to long-lived.");
     } catch (exchangeError: any) {
-      console.log("Token might already be long-lived:", exchangeError.response?.data?.error?.message || exchangeError.message);
+      console.error("Token exchange failed:", exchangeError.response?.data?.error?.message || exchangeError.message);
     }
 
     try {
@@ -697,9 +688,8 @@ export const getUserByToken = async (
         lastTokenRefresh: now,
       });
 
-      console.log("Refreshed long-lived token.");
     } catch (refreshErr: any) {
-      console.log("Token refresh skipped or failed:", refreshErr.response?.data?.error?.message || refreshErr.message);
+      console.error("Token refresh failed:", refreshErr.response?.data?.error?.message || refreshErr.message);
     }
     const profileRes: any = await axios.get("https://graph.instagram.com/me", {
       params: {
@@ -737,7 +727,6 @@ export const getUserByToken = async (
     const followersWhoEngaged = reach > 0 ? Math.round((accountsEngaged * followersCount) / reach) : 0;
     const nonFollowersWhoEngaged = Math.max(accountsEngaged - followersWhoEngaged, 0);
     const nonFollowers = reach > 0 ? Math.max(Math.round(reach - followersCount), 0) : 0;
-    console.log(userProfile, nonFollowers,reach,insightsUpdate);
     await UserModel.findByIdAndUpdate(userId, {
       insights: insightsUpdate,
       businessDiscovery: {
@@ -1003,11 +992,6 @@ export const getAlluser = async (
         earningTotal,
       };
     });
-
-    console.log('📋 Fetched users count:', users.length);
-    if (users.length > 0) {
-      console.log('💰 Sample user manualPay:', users[0]?.manualPay);
-    }
 
     if (users.length > 0) {
       res.status(200).json({
@@ -1338,7 +1322,6 @@ export const userFeedbackByAdmin = async (req: Request, res: Response): Promise<
 export const editBusiness = async (req: Request, res: Response): Promise<void> => {
   const { firstName, lastName, phone, name, email, address, location } = req.body;
   const { userId } = req.query; 
-  console.log(req.body)
   const parsedLocation = typeof location === "string" ? JSON.parse(location) : location;
   if (!userId) {
     responsestatusmessage(res, "false", "User ID is required.");
@@ -1369,7 +1352,6 @@ export const editBusiness = async (req: Request, res: Response): Promise<void> =
     },
     { new: true } 
   );
-   console.log(updatedBusinessUser)
    if(updatedBusinessUser){
      resStatusData(res, "success", "Business details updated successfully.", updatedBusinessUser);
 

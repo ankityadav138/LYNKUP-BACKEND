@@ -98,7 +98,6 @@ export const editProfile = async (req: Request | any, res: Response, next: NextF
 // };  
 export const editProfileForAdmin = async (req: Request | any, res: Response, next: NextFunction): Promise<void> => {
   const userId = req.user?._id;
-  console.log("adminId:",userId);
   try {
     const { firstName, lastName, name, email, address, location } = req.body;
     if(!(firstName ||lastName||name||email||location)){
@@ -136,7 +135,6 @@ export const editProfileForAdmin = async (req: Request | any, res: Response, nex
       updateData.document = mediaFiles;
     }
     const updatedUser = await UserModel.findByIdAndUpdate(userId, updateData, { new: true });
-      console.log(updatedUser)
     if (mediaFiles.length && Object.keys(updateData).length === 1) {
       resStatusData(res, "success", "Document updated successfully.", { profileImage: updatedUser?.profileImage });
     } else {

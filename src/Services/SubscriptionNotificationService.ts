@@ -12,13 +12,11 @@ export const notifyUserBySubscriptionStatus = async (
   try {
     const user = await UserModel.findById(userId);
     if (!user || !user.playerId || user.playerId.length === 0) {
-      console.log(`User ${userId} has no playerId registered`);
       return;
     }
 
     const subscription = await SubscriptionModel.findOne({ userId, status }).populate("planId");
     if (!subscription) {
-      console.log(`No ${status} subscription found for user ${userId}`);
       return;
     }
 
@@ -60,7 +58,7 @@ export const notifyUserBySubscriptionStatus = async (
       notificationType
     );
 
-    console.log(`✅ Notification sent to user ${userId} for ${status} subscription`);
+    console.log(`[Notification] Sent to user ${userId} for ${status} subscription`);
   } catch (error) {
     console.error(`Error sending subscription notification to user ${userId}:`, error);
   }
@@ -102,7 +100,7 @@ export const notifyUsersBySubscriptionTier = async (
       }
     }
 
-    console.log(`✅ Sent ${notificationsSent} notifications to ${tier} tier users`);
+    console.log(`[Notification] Sent ${notificationsSent} notifications to ${tier} tier users`);
     return notificationsSent;
   } catch (error) {
     console.error(`Error sending notifications to ${tier} tier users:`, error);
@@ -144,7 +142,7 @@ export const notifyAllActiveSubscribers = async (
       }
     }
 
-    console.log(`✅ Sent ${notificationsSent} notifications to active subscribers`);
+    console.log(`[Notification] Sent ${notificationsSent} notifications to active subscribers`);
     return notificationsSent;
   } catch (error) {
     console.error("Error sending notifications to active subscribers:", error);
@@ -174,7 +172,7 @@ export const notifySubscriptionUpgrade = async (
       "subscription_upgraded"
     );
 
-    console.log(`✅ Upgrade notification sent to user ${userId}`);
+    console.log(`[Notification] Upgrade notification sent to user ${userId}`);
   } catch (error) {
     console.error(`Error sending upgrade notification to user ${userId}:`, error);
   }
@@ -193,7 +191,6 @@ export const notifyUnsubscribedBusinessUsers = async () => {
     });
 
     if (unsubscribedBusinessUsers.length === 0) {
-      console.log("No unsubscribed business users found");
       return 0;
     }
 
@@ -231,7 +228,7 @@ export const notifyUnsubscribedBusinessUsers = async () => {
       }
     }
 
-    console.log(`✅ Sent ${notificationsSent} subscription promotion notifications to unsubscribed business users`);
+    console.log(`[Notification] Sent ${notificationsSent} subscription promotions to unsubscribed business users`);
     return notificationsSent;
   } catch (error) {
     console.error("Error sending notifications to unsubscribed business users:", error);
@@ -251,22 +248,18 @@ export const notifySpecificUnsubscribedUser = async (
     const user = await UserModel.findById(userId);
     
     if (!user) {
-      console.log(`User ${userId} not found`);
       return false;
     }
 
     if (user.userType !== "business") {
-      console.log(`User ${userId} is not a business user`);
       return false;
     }
 
     if (user.hasActiveSubscription) {
-      console.log(`User ${userId} already has active subscription`);
       return false;
     }
 
     if (!user.playerId || user.playerId.length === 0) {
-      console.log(`User ${userId} has no playerId registered`);
       return false;
     }
 
@@ -281,7 +274,7 @@ export const notifySpecificUnsubscribedUser = async (
       "subscription_personal_offer"
     );
 
-    console.log(`✅ Personal subscription promotion sent to user ${userId}`);
+    console.log(`[Notification] Personal subscription promotion sent to user ${userId}`);
     return true;
   } catch (error) {
     console.error(`Error sending personal promotion to user ${userId}:`, error);

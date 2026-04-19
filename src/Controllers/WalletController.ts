@@ -56,7 +56,6 @@ export const getWalletBalance = async (req: Request, res: Response) => {
     let wallet = await Wallet.findOne({ user_id: userId });
 
     if (!wallet) {
-      console.log("Wallet not found for user, creating new wallet:", userId);
       wallet = await Wallet.create({
         user_id: userId,
         total_balance: 0,
@@ -116,19 +115,12 @@ export const createRechargeOrder = async (req: Request, res: Response) => {
       });
     }
 
-    console.log("Wallet like here",wallet)
-
     // Create Razorpay order
-    console.log("receipt generating",`rc_${userId.toString().slice(-6)}_${Date.now()}`)
     const razorpayOrder = await razorpay.orders.create({
       amount: amount * 100, // Convert to paise
       currency: "INR",
       receipt: `rc_${userId.toString().slice(-6)}_${Date.now()}`,
     });
-
-    
-    
-    console.log("Razorpay order created:", razorpayOrder);
 
     // Create pending transaction
     const transaction = await WalletTransaction.create({
@@ -175,11 +167,6 @@ export const verifyRecharge = async (req: Request, res: Response) => {
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
       .update(body.toString())
       .digest("hex");
-
-      //TESTING LOGS
-      console.log("Expected Signature:", expectedSignature);
-      console.log("Received Signature:", razorpay_signature);
-      //END TESTING LOGS
 
     if (expectedSignature !== razorpay_signature) {
       return resStatusData(

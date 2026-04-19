@@ -66,9 +66,6 @@ else{
       },
     });
 
-    // console.log("Notification Response:", response.data);
-    console.log("Notification sent successfully");
-
   } }catch (error: any) {
     console.error("Error sending notification:", error.response?.data || error.message);
   }
@@ -91,7 +88,6 @@ else{
           'Content-Type': 'application/json',
         },
       });
-      console.log('Notification sent successfully:', response.data);
     } catch (error) {
       console.error('Error sending notification:', error);
     }
@@ -107,7 +103,6 @@ else{
     });
     try {
       await notification.save();
-      console.log('Notification saved to database');
     } catch (error) {
       console.error('Error saving notification:', error);
     }

@@ -35,12 +35,10 @@ export const createBooking = async (
       return;
     }
 
-    console.log("Trying to create the booking",offerDetails)
     const existingUserBooking = await BookingModel.findOne({
       offerId,
       userId, 
     });
-    console.log("Trying Existing booking check",existingUserBooking)
     if (existingUserBooking) {
       resStatus(res, "false", "You have already booked this offer.");
       return;
@@ -120,7 +118,6 @@ if (today > offerEnd) {
 
     // Send notification
     const playerIDs: string[] = adminDetails?.playerId || ["d4f36cc6-f7bb-4b0f-bc01-c04c7509a247"];
-    console.log("==============",playerIDs)
     const title = "Booking Created";
     const notificationMessage = `Booking of ${offerDetails?.name?.toUpperCase() || 'OFFER'} made by the Creator`;
     const imageUrl = "image/download.png";
@@ -152,7 +149,6 @@ export const showBookings = async (
   const { status, page = 1, limit = 10 } = req.query;
   // const userId = req.user._id;
   const userId = new mongoose.Types.ObjectId(req.user._id);
-  console.log(userId);
   if (
     status &&
     ![
@@ -1099,7 +1095,8 @@ export const getAllBookings = async (req: any, res: Response): Promise<void> => 
           userDetails:1,
           offerDetails: {
             name: 1,
-            business_id: 1, 
+            business_id: 1,
+            collaboration_type: { $ifNull: ["$offerDetails.collaboration_type", "milestone"] },
           },
           businessDetails: {
             firstName: 1,

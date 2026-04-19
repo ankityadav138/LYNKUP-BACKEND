@@ -55,21 +55,19 @@ app.use(errorHandler);
 
 // Test route
 app.get("/", (req: Request, res: Response) => {
-  console.log("Root endpoint hit");
   res.send("TEST BACKEND IS WORKING");
 });
 
 // Instagram OAuth callback
 app.get("/auth/instagram/callback", async (req, res) => {
   const { code } = req.query;
-  console.log(code, "object");
 
   try {
     res.redirect(
       `https://socialmeapi.testenvapp.com/auth/instagram/callback1?code=${code}`
     );
   } catch (error) {
-    console.log(error);
+    console.error("Instagram callback error:", error);
     res.redirect("lynkup://auth?error=instagram_failed");
   }
 });
@@ -79,5 +77,4 @@ const port = process.env.PORT || 8089;
 // Start server
 app.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
-  console.log(`CORS enabled for ALL origins`);
 });
