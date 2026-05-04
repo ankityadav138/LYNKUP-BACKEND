@@ -43,29 +43,15 @@ export const createBooking = async (
       resStatus(res, "false", "You have already booked this offer.");
       return;
     }
-    if (offerDetails.ending_type === "booking") {
-      const totalAcceptedBookings = await BookingModel.countDocuments({
-        offerId,
-        status: "accepted",
-      });
-      const maxBookingLimit = offerDetails?.max_booking || 1;
-      if (totalAcceptedBookings >= maxBookingLimit) {
-        resStatus(res, "false", "Booking limit reached for this offer.");
+    // Booking-quota cap removed: any number of bookings is now allowed per offer.
+    // Date-based expiry still applies whenever an end date is set on the offer.
+    if (offerDetails.valid?.end) {
+      const today = new Date(new Date().toDateString());
+      const offerEnd = new Date(new Date(offerDetails.valid.end).toDateString());
+      if (today > offerEnd) {
+        resStatus(res, "false", "This offer has expired.");
         return;
       }
-    } else if (offerDetails.ending_type === "days") {
-      const currentDate = new Date();
-const endDate = new Date(offerDetails.valid.end);
-
-// Strip time from dates for clean comparison
-const today = new Date(currentDate.toDateString());
-const offerEnd = new Date(endDate.toDateString());
-
-if (today > offerEnd) {
-  resStatus(res, "false", "This offer has expired.");
-  return;
-}
-
     }
     const userDetails = await UserModel.findById(userId);
     const adminDetails = await UserModel.findOne({ _id: offerDetails.business_id });

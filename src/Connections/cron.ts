@@ -14,15 +14,8 @@ export const updateOfferStatus = async () => {
       { $set: { status: "ended" } }
     );
 
-    const offers = await OfferModel.find({ ending_type: "booking" }).select("max_booking noOfBookings");
-    const updatedByBookings = await OfferModel.updateMany(
-      {
-        ending_type: "booking",
-        $expr: { $gte: ["$noOfBookings", "$max_booking"] },
-        status: { $ne: "ended" },
-      },
-      { $set: { status: "ended" } }
-    );
+    // Booking-quota auto-end disabled: offers are no longer ended based on max_booking.
+    // Offers with ending_type "booking" now allow unlimited bookings.
     const updatedToLive = await OfferModel.updateMany(
       {
         ending_type: "days",
@@ -33,7 +26,6 @@ export const updateOfferStatus = async () => {
     );
 
     console.log(`[Cron] Updated ${updatedByDays.modifiedCount} offers to 'ended' by 'days'`);
-    console.log(`[Cron] Updated ${updatedByBookings.modifiedCount} offers to 'ended' by 'booking'`);
     console.log(`[Cron] Updated ${updatedToLive.modifiedCount} offers to 'live'`);
 
   } catch (error) {
