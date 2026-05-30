@@ -29,17 +29,17 @@ export const getSubscriptionPlans = async (
   res: Response
 ): Promise<void> => {
   try {
-    const plans = await SubscriptionPlanModel.findOne({
+    const plans = await SubscriptionPlanModel.find({
       isActive: true,
     });
 
-    if (!plans) {
+    if (!plans || plans.length === 0) {
       resStatusData(res, "error", "Subscription plans not found", {});
       return;
     }
 
     resStatusData(res, "success", "Subscription plans retrieved", {
-      plan: plans,
+      plans: plans,
     });
   } catch (error: any) {
     console.error("Get subscription plans error:", error);
@@ -70,12 +70,6 @@ export const createSubscriptionOrder = async (
 
     if (!planId || !tier) {
       resStatusData(res, "error", "Plan ID and tier are required", {});
-      return;
-    }
-
-    // Validate tier format
-    if (!["silver"].includes(tier)) {
-      resStatusData(res, "error", "Invalid tier selected", {});
       return;
     }
 

@@ -50,7 +50,7 @@ const subscriptionSchema = new Schema<SubscriptionData>(
     tier: {
       type: String,
       required: true,
-      enum: ["silver", "gold", "platinum", "diamond"],
+      enum: ["silver", "gold", "platinum", "diamond", "pro"],
     },
     duration: {
       type: Number,

@@ -2239,9 +2239,9 @@ export const createOfferByBusiness = async (
   console.log("✅ Basic validation passed");
 
   // Validate collaboration type
-  if (collaboration_type && !["milestone", "paid"].includes(collaboration_type)) {
+  if (collaboration_type && !["milestone", "paid", "hosting"].includes(collaboration_type)) {
     console.log("❌ Invalid collaboration_type:", collaboration_type);
-    resStatus(res, "false", "collaboration_type must be 'milestone' or 'paid'.");
+    resStatus(res, "false", "collaboration_type must be 'milestone', 'paid', or 'hosting'.");
     return;
   }
 
@@ -2264,15 +2264,19 @@ export const createOfferByBusiness = async (
 
   // Calculate total lock amount
   let totalLockAmount = MINIMUM_OFFER_AMOUNT; // ₹20,000 security deposit
-  // if (collaboration_type === "paid" && fixed_amount) {
-  //   totalLockAmount += parseFloat(fixed_amount);
-  // }
+  if (collaboration_type === "paid" && fixed_amount) {
+    totalLockAmount += parseFloat(fixed_amount);
+  }
+
+  if (collaboration_type === "hosting") {
+    totalLockAmount = 0; // Hosting offers are free and do not require wallet balance
+  }
 
   console.log("💰 Total Lock Amount:", totalLockAmount);
 
   // Check wallet balance for total amount needed
-  // Skip check for admin users
-  if (req.user.userType !== "admin" && wallet.available_balance < totalLockAmount) {
+  // Skip check for admin users and hosting collaborations
+  if (req.user.userType !== "admin" && collaboration_type !== "hosting" && wallet.available_balance < totalLockAmount) {
     console.log("❌ Insufficient wallet balance:", {
       required: totalLockAmount,
       available: wallet.available_balance,
@@ -2310,12 +2314,10 @@ export const createOfferByBusiness = async (
       return;
     }
 
-    // Lock wallet balance BEFORE creating offer (skip for admin)
+    // Lock wallet balance BEFORE creating offer (skip for admin and hosting)
     try {
-      // Only lock funds for non-admin users
-      if (req.user.userType !== "admin") {
-      
-
+      // Only lock funds for non-admin users and non-hosting collaborations
+      if (req.user.userType !== "admin" && collaboration_type !== "hosting") {
         const updatedWallet = await wallet.lockAmount(totalLockAmount);
 
        
@@ -2375,8 +2377,8 @@ export const createOfferByBusiness = async (
         withdrawal_requested: false,
       });
 
-      // Create wallet transaction record (only for non-admin)
-      if (req.user.userType !== "admin") {
+      // Create wallet transaction record (only for non-admin and non-hosting)
+      if (req.user.userType !== "admin" && collaboration_type !== "hosting") {
         const transaction = await WalletTransaction.create({
           wallet_id: wallet._id,
           user_id: business_id,
@@ -2427,10 +2429,10 @@ export const createOfferByBusiness = async (
       return;
     }
   } else {
-    // Lock wallet balance BEFORE creating offer (ending_type = "booking") - skip for admin
+    // Lock wallet balance BEFORE creating offer (ending_type = "booking") - skip for admin and hosting
     try {
-      // Only lock funds for non-admin users
-      if (req.user.userType !== "admin") {
+      // Only lock funds for non-admin users and non-hosting collaborations
+      if (req.user.userType !== "admin" && collaboration_type !== "hosting") {
         const updatedWallet = await wallet.lockAmount(totalLockAmount);
         // Double-check: Refetch wallet from DB to confirm save
         const walletCheck = await Wallet.findById(wallet._id); 
@@ -2478,8 +2480,8 @@ export const createOfferByBusiness = async (
         withdrawal_requested: false,
       });
 
-      // Create wallet transaction record (only for non-admin)
-      if (req.user.userType !== "admin") {
+      // Create wallet transaction record (only for non-admin and non-hosting)
+      if (req.user.userType !== "admin" && collaboration_type !== "hosting") {
         const transactionDescription = collaboration_type === "paid"
           ? `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for paid collaboration: ${name}`
           : `Security deposit of ₹${MINIMUM_OFFER_AMOUNT.toLocaleString("en-IN")} locked for milestone collaboration: ${name}`;

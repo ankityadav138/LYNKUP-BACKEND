@@ -14,6 +14,8 @@ export const requireWalletBalance = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+
+    console.log("resssss", req.body)
     const userId = (req as any).user?.id || (req as any).user?._id;
     const SECURITY_DEPOSIT = 20000; // ₹20,000
 
@@ -30,6 +32,16 @@ export const requireWalletBalance = async (
       (req as any).walletInfo = {
         isAdmin: true,
         securityDeposit: SECURITY_DEPOSIT,
+      };
+      next();
+      return;
+    }
+
+    // Skip balance check for hosting collaborations; hosting offers can be created for free
+    if (req.body?.collaboration_type === "hosting") {
+      (req as any).walletInfo = {
+        isHosting: true,
+        securityDeposit: 0,
       };
       next();
       return;

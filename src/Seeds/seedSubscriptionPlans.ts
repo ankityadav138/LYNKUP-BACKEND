@@ -18,47 +18,81 @@ const seedSubscriptionPlans = async () => {
     await SubscriptionPlanModel.deleteMany({});
     console.log("🗑️  Cleared existing subscription plans");
 
-    // Create subscription plan with single tier
-    const subscriptionPlan = await SubscriptionPlanModel.create({
-      name: "Business Subscription Plan",
-      description:
-        "Unlock premium features to grow your business on Lynkup.",
-      category: "business",
-      currency: "INR",
-      isActive: true,
-      tiers: [
-        {
-          id: "silver",
-          duration: 1,
-          price: 5900,
-          discount: 0,
-          description: "1 Month - Full access to all features",
-          monthlyEquivalent: 5900,
-        },
-      ],
-      features: [
-        "Create unlimited offers",
-        "View detailed analytics",
-        "Access customer insights",
-        "Priority customer support",
-        "Featured business listing",
-        "Unlimited portfolio items",
-        "Advanced reporting tools",
-        "Social media integration",
-        "Email campaign tools",
-        "Customer management system",
-      ],
-    });
+    // Create subscription plans
+    const plans = await SubscriptionPlanModel.insertMany([
+      {
+        name: "Business Subscription Plan",
+        description:
+          "Unlock premium features to grow your business on Lynkup.",
+        category: "business",
+        currency: "INR",
+        isActive: true,
+        tiers: [
+          {
+            id: "silver",
+            duration: 1,
+            price: 5000,
+            discount: 0,
+            description: "1 Month - Full access to all features",
+            monthlyEquivalent: 5000,
+          },
+        ],
+        features: [
+          "Create unlimited offers",
+          "View detailed analytics",
+          "Access customer insights",
+          "Priority customer support",
+          "Featured business listing",
+          "Unlimited portfolio items",
+          "Advanced reporting tools",
+          "Social media integration",
+          "Email campaign tools",
+          "Customer management system",
+        ],
+      },
+      {
+        name: "Pro Plan",
+        description:
+          "Advanced features for professional businesses.",
+        category: "business",
+        currency: "INR",
+        isActive: true,
+        tiers: [
+          {
+            id: "pro",
+            duration: 1,
+            price: 15000,
+            discount: 0,
+            description: "1 Month - Premium features and support",
+            monthlyEquivalent: 15000,
+          },
+        ],
+        features: [
+          "All Business Plan features",
+          "Advanced analytics dashboard",
+          "Custom integrations",
+          "Dedicated account manager",
+          "Priority support with 24/7 availability",
+          "White-label solutions",
+          "API access",
+          "Custom reporting",
+          "Team collaboration tools",
+          "Advanced security features",
+        ],
+      },
+    ]);
 
     console.log("✅ Subscription plans seeded successfully!");
-    console.log("📋 Plan Details:");
-    console.log(`   Plan ID: ${subscriptionPlan._id}`);
-    console.log(`   Name: ${subscriptionPlan.name}`);
-    console.log(`   Tiers: ${subscriptionPlan.tiers.length}`);
-    subscriptionPlan.tiers.forEach((tier) => {
-      console.log(
-        `     - ${tier.id}: ₹${tier.price} for ${tier.duration} month(s)`
-      );
+    plans.forEach((plan) => {
+      console.log("📋 Plan Details:");
+      console.log(`   Plan ID: ${plan._id}`);
+      console.log(`   Name: ${plan.name}`);
+      console.log(`   Tiers: ${plan.tiers.length}`);
+      plan.tiers.forEach((tier) => {
+        console.log(
+          `     - ${tier.id}: ₹${tier.price} for ${tier.duration} month(s)`
+        );
+      });
     });
 
     await mongoose.connection.close();

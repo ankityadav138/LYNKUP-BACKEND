@@ -49,7 +49,7 @@ interface OfferInterface extends Document {
   updatedAt?: Date;
   
   // New Fields for Paid Collaborations
-  collaboration_type?: "milestone" | "paid";
+  collaboration_type?: "milestone" | "paid" | "hosting";
   fixed_amount?: number;         // Post-commission amount shown to business & creator
   original_fixed_amount?: number; // What business originally entered (admin reference)
   milestone_slabs?: Array<{
@@ -226,7 +226,7 @@ const OfferSchema = new Schema<OfferInterface>(
     },
     collaboration_type: {
       type: String,
-      enum: ["milestone", "paid"],
+      enum: ["milestone", "paid", "hosting"],
       default: "milestone",
     },
     fixed_amount: {
