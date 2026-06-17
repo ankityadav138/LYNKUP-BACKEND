@@ -13,6 +13,17 @@ export interface SubscriptionData extends Document {
   isInGracePeriod?: boolean;
   amount: number; // amount paid in INR
   currency: string; // "INR"
+  baseAmount?: number; // original plan amount before proration or adjustment
+  prorationCredit?: number; // credit applied from the previous subscription
+  prorationDaysRemaining?: number;
+  prorationTotalDays?: number;
+  changeType?: "upgrade" | "downgrade" | "renewal" | "new";
+  replacesSubscriptionId?: ObjectId;
+  scheduledPlanId?: ObjectId;
+  scheduledTier?: string;
+  scheduledAmount?: number;
+  scheduledEffectiveDate?: Date;
+  scheduledAt?: Date;
   razorpayOrderId: string;
   razorpayPaymentId?: string;
   razorpaySignature?: string;
@@ -89,6 +100,53 @@ const subscriptionSchema = new Schema<SubscriptionData>(
     amount: {
       type: Number,
       required: true,
+    },
+    baseAmount: {
+      type: Number,
+      required: false,
+    },
+    prorationCredit: {
+      type: Number,
+      required: false,
+    },
+    prorationDaysRemaining: {
+      type: Number,
+      required: false,
+    },
+    prorationTotalDays: {
+      type: Number,
+      required: false,
+    },
+    changeType: {
+      type: String,
+      required: false,
+      enum: ["upgrade", "downgrade", "renewal", "new"],
+    },
+    replacesSubscriptionId: {
+      type: Schema.Types.ObjectId,
+      ref: "Subscription",
+      required: false,
+    },
+    scheduledPlanId: {
+      type: Schema.Types.ObjectId,
+      ref: "SubscriptionPlan",
+      required: false,
+    },
+    scheduledTier: {
+      type: String,
+      required: false,
+    },
+    scheduledAmount: {
+      type: Number,
+      required: false,
+    },
+    scheduledEffectiveDate: {
+      type: Date,
+      required: false,
+    },
+    scheduledAt: {
+      type: Date,
+      required: false,
     },
     currency: {
       type: String,

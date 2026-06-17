@@ -8,6 +8,7 @@
     "build": "tsc",
     "dev": "nodemon --watch src --exec ts-node ./index.ts",
     "seed:plans": "ts-node src/Seeds/seedSubscriptionPlans.ts",
+    "migrate:plans": "ts-node src/Scripts/updateSubscriptionPlans.ts",
     "seed:businesses": "ts-node src/Scripts/seedBusinessUsers.ts",
     "seed:creator": "ts-node src/Scripts/seedCreatorBooking.ts",
     "setup:fresh": "npm run seed:plans && echo '\n✅ Database seeded! Create admin user via signup + MongoDB update'",

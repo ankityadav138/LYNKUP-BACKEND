@@ -21,7 +21,7 @@ const seedSubscriptionPlans = async () => {
     // Create subscription plans
     const plans = await SubscriptionPlanModel.insertMany([
       {
-        name: "Business Subscription Plan",
+        name: "Standard Plan",
         description:
           "Unlock premium features to grow your business on Lynkup.",
         category: "business",
@@ -61,10 +61,10 @@ const seedSubscriptionPlans = async () => {
           {
             id: "pro",
             duration: 1,
-            price: 15000,
+            price: 10000,
             discount: 0,
             description: "1 Month - Premium features and support",
-            monthlyEquivalent: 15000,
+            monthlyEquivalent: 10000,
           },
         ],
         features: [

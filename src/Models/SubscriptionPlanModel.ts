@@ -10,7 +10,7 @@ export interface SubscriptionTier {
 }
 
 export interface SubscriptionPlanData extends Document {
-  name: string; // "Business Subscription Plan"
+  name: string; // "Standard Plan"
   description: string;
   tiers: SubscriptionTier[];
   features: string[]; // list of features included
@@ -27,7 +27,7 @@ const subscriptionPlanSchema = new Schema<SubscriptionPlanData>(
     name: {
       type: String,
       required: true,
-      default: "Business Subscription Plan",
+      default: "Standard Plan",
     },
     description: {
       type: String,

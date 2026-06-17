@@ -8,16 +8,38 @@ import SubscriptionPlanModel from "../Models/SubscriptionPlanModel";
 import InvoiceModel from "../Models/InvoiceModel";
 import { resStatusData } from "../Responses/Response";
 import { invoiceService } from "../Services/InvoiceService";
-import { subscriptionNotificationService } from "../Services/SubscriptionNotificationService";
+import { notifySubscriptionUpgrade, subscriptionNotificationService } from "../Services/SubscriptionNotificationService";
 
 // Grace period in days
 const GRACE_PERIOD_DAYS = 3;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 // Initialize Razorpay instance
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || "",
   key_secret: process.env.RAZORPAY_KEY_SECRET || "",
 });
+
+const getPlanTier = (plan: any, tierId: string) => {
+  return plan?.tiers?.find((tier: any) => tier.id === tierId) || null;
+};
+
+const calculateProration = (subscription: any) => {
+  const now = new Date();
+  const startDate = subscription.startDate ? new Date(subscription.startDate) : now;
+  const endDate = subscription.endDate ? new Date(subscription.endDate) : now;
+  const totalMs = Math.max(1, endDate.getTime() - startDate.getTime());
+  const remainingMs = Math.max(0, endDate.getTime() - now.getTime());
+  const totalDays = Math.max(1, Math.ceil(totalMs / DAY_IN_MS));
+  const remainingDays = Math.max(0, Math.ceil(remainingMs / DAY_IN_MS));
+  const credit = Number(((subscription.amount || 0) * (remainingMs / totalMs)).toFixed(2));
+
+  return {
+    credit,
+    remainingDays,
+    totalDays,
+  };
+};
 
 /**
  * GET /api/subscription/plans
@@ -97,24 +119,195 @@ export const createSubscriptionOrder = async (
     // Check if user already has an active subscription
     const existingSubscription = await SubscriptionModel.findOne({
       userId,
-      status: "active",
-      endDate: { $gt: new Date() }, // Not expired
-    });
+      status: { $in: ["active", "expiring_soon", "grace_period"] },
+      endDate: { $gt: new Date() },
+    }).populate("planId");
+
+    const currentPlan = existingSubscription ? (existingSubscription.planId as any) : null;
+    const currentTier = existingSubscription ? getPlanTier(currentPlan, existingSubscription.tier) : null;
+    const currentPrice = existingSubscription ? Number(currentTier?.price ?? existingSubscription.amount ?? 0) : 0;
+    const selectedPrice = Number(selectedTier.price);
 
     if (existingSubscription) {
-      resStatusData(res, "error", "You already have an active subscription. Please wait for it to expire before purchasing a new one.", {
+      const currentPlanId = currentPlan?._id ? String((currentPlan as any)._id) : existingSubscription.planId ? String(existingSubscription.planId) : null;
+      const selectedPlanId = String((plan as any)._id);
+
+      if (currentPlanId === selectedPlanId && existingSubscription.tier === tier) {
+        resStatusData(res, "error", "You are already subscribed to this plan.", {
+          currentSubscription: {
+            tier: existingSubscription.tier,
+            endDate: existingSubscription.endDate,
+            daysRemaining: Math.ceil((existingSubscription.endDate.getTime() - Date.now()) / DAY_IN_MS),
+          },
+        });
+        return;
+      }
+
+      if (selectedPrice > currentPrice) {
+        const proration = calculateProration(existingSubscription);
+        const adjustedAmount = Math.max(0, Number((selectedPrice - proration.credit).toFixed(2)));
+
+        if (adjustedAmount <= 0) {
+          const upgradedSubscription = await SubscriptionModel.create({
+            userId,
+            planId,
+            tier,
+            duration: selectedTier.duration,
+            status: "pending",
+            paymentStatus: "completed",
+            amount: 0,
+            baseAmount: selectedPrice,
+            prorationCredit: proration.credit,
+            prorationDaysRemaining: proration.remainingDays,
+            prorationTotalDays: proration.totalDays,
+            changeType: "upgrade",
+            replacesSubscriptionId: existingSubscription._id as any,
+            currency: "INR",
+            razorpayOrderId: `FREE-${Date.now()}`.slice(0, 40),
+            metadata: {
+              userAgent: req.get("user-agent"),
+              ipAddress: req.ip,
+              source: "web",
+            },
+          });
+
+          resStatusData(res, "success", "Upgrade completed successfully", {
+            paymentRequired: false,
+            amount: 0,
+            prorationCredit: proration.credit,
+            adjustedAmount: 0,
+            subscriptionId: upgradedSubscription._id,
+            message: "Your upgrade was covered by remaining subscription value and is active immediately.",
+          });
+          return;
+        }
+
+        const razorpayOrder = await razorpay.orders.create({
+          amount: Math.round(adjustedAmount * 100),
+          currency: "INR",
+          receipt: `SUB-UP-${Date.now()}`.slice(0, 40),
+          notes: {
+            userId: userId,
+            planId: planId,
+            tier: tier,
+            duration: selectedTier.duration,
+            changeType: "upgrade",
+            replacesSubscriptionId: String(existingSubscription._id),
+            baseAmount: String(selectedPrice),
+            prorationCredit: String(proration.credit),
+          },
+        });
+
+        let subscription = await SubscriptionModel.findOne({
+          userId,
+          status: "pending",
+          paymentStatus: "pending",
+          changeType: "upgrade",
+          replacesSubscriptionId: existingSubscription._id,
+        });
+
+        if (subscription) {
+          subscription.planId = planId as any;
+          subscription.tier = tier;
+          subscription.duration = selectedTier.duration;
+          subscription.amount = adjustedAmount;
+          subscription.baseAmount = selectedPrice;
+          subscription.prorationCredit = proration.credit;
+          subscription.prorationDaysRemaining = proration.remainingDays;
+          subscription.prorationTotalDays = proration.totalDays;
+          subscription.changeType = "upgrade";
+          subscription.replacesSubscriptionId = existingSubscription._id as any;
+          subscription.razorpayOrderId = razorpayOrder.id;
+          subscription.razorpayPaymentId = undefined;
+          subscription.razorpaySignature = undefined;
+          await subscription.save();
+        } else {
+          subscription = await SubscriptionModel.create({
+            userId,
+            planId,
+            tier,
+            duration: selectedTier.duration,
+            status: "pending",
+            paymentStatus: "pending",
+            amount: adjustedAmount,
+            baseAmount: selectedPrice,
+            prorationCredit: proration.credit,
+            prorationDaysRemaining: proration.remainingDays,
+            prorationTotalDays: proration.totalDays,
+            changeType: "upgrade",
+            replacesSubscriptionId: existingSubscription._id,
+            currency: "INR",
+            razorpayOrderId: razorpayOrder.id,
+            metadata: {
+              userAgent: req.get("user-agent"),
+              ipAddress: req.ip,
+              source: "web",
+            },
+          });
+        }
+
+        resStatusData(res, "success", "Upgrade order created successfully", {
+          orderId: razorpayOrder.id,
+          subscriptionId: subscription._id,
+          amount: adjustedAmount,
+          prorationCredit: proration.credit,
+          baseAmount: selectedPrice,
+          adjustedAmount,
+          currency: "INR",
+          userEmail: user.email,
+          planDetails: {
+            name: plan.name,
+            tier: selectedTier.id,
+            duration: `${selectedTier.duration} month(s)`,
+            price: selectedTier.price,
+            discount: selectedTier.discount,
+            monthlyEquivalent: selectedTier.monthlyEquivalent,
+            description: selectedTier.description,
+          },
+        });
+        return;
+      }
+
+      if (selectedPrice < currentPrice) {
+        existingSubscription.changeType = "downgrade";
+        existingSubscription.scheduledPlanId = planId as any;
+        existingSubscription.scheduledTier = tier;
+        existingSubscription.scheduledAmount = selectedPrice;
+        existingSubscription.scheduledEffectiveDate = existingSubscription.endDate;
+        existingSubscription.scheduledAt = new Date();
+        await existingSubscription.save();
+
+        resStatusData(res, "success", "Downgrade scheduled successfully", {
+          paymentRequired: false,
+          message: "Your downgrade will apply on the next renewal after the current billing cycle ends.",
+          currentSubscription: {
+            tier: existingSubscription.tier,
+            endDate: existingSubscription.endDate,
+            daysRemaining: Math.ceil((existingSubscription.endDate.getTime() - Date.now()) / DAY_IN_MS),
+          },
+          scheduledChange: {
+            planId,
+            tier,
+            amount: selectedPrice,
+            effectiveDate: existingSubscription.endDate,
+          },
+        });
+        return;
+      }
+
+      resStatusData(res, "error", "This plan change cannot be processed.", {
         currentSubscription: {
           tier: existingSubscription.tier,
+          amount: currentPrice,
           endDate: existingSubscription.endDate,
-          daysRemaining: Math.ceil((existingSubscription.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
         },
       });
       return;
     }
 
-    // Create Razorpay order
+    // Create Razorpay order for a new subscription
     const razorpayOrder = await razorpay.orders.create({
-      amount: selectedTier.price * 100,
+      amount: selectedPrice * 100,
       currency: "INR",
       receipt: `SUB-${Date.now()}`.slice(0, 40), // Truncate to 40 chars
       notes: {
@@ -122,6 +315,7 @@ export const createSubscriptionOrder = async (
         planId: planId,
         tier: tier,
         duration: selectedTier.duration,
+        changeType: "new",
       },
     });
 
@@ -149,7 +343,9 @@ export const createSubscriptionOrder = async (
         duration: selectedTier.duration,
         status: "pending",
         paymentStatus: "pending",
-        amount: selectedTier.price,
+        amount: selectedPrice,
+        baseAmount: selectedPrice,
+        changeType: "new",
         currency: "INR",
         razorpayOrderId: razorpayOrder.id,
         metadata: {
@@ -163,14 +359,14 @@ export const createSubscriptionOrder = async (
     resStatusData(res, "success", "Order created successfully", {
       orderId: razorpayOrder.id,
       subscriptionId: subscription._id,
-      amount: selectedTier.price,
+      amount: selectedPrice,
       currency: "INR",
       userEmail: user.email,
       planDetails: {
         name: plan.name,
         tier: selectedTier.id,
         duration: `${selectedTier.duration} month(s)`,
-        price: selectedTier.price,
+        price: selectedPrice,
         discount: selectedTier.discount,
         monthlyEquivalent: selectedTier.monthlyEquivalent,
         description: selectedTier.description,
@@ -347,6 +543,19 @@ export const verifySubscription = async (
       session.endSession();
     }
 
+    if (subscription.changeType === "upgrade" && subscription.replacesSubscriptionId) {
+      try {
+        const previousSubscription = await SubscriptionModel.findById(subscription.replacesSubscriptionId);
+        await notifySubscriptionUpgrade(
+          userId.toString(),
+          previousSubscription?.tier || "current",
+          subscription.tier
+        );
+      } catch (notifErr) {
+        console.error("[Notification] Failed to send upgrade notification:", notifErr);
+      }
+    }
+
     // Send push notification about activation (non-blocking)
     try {
       await subscriptionNotificationService.notifyUserBySubscriptionStatus(
@@ -360,7 +569,7 @@ export const verifySubscription = async (
     // Create Invoice record and send email (non-blocking)
     try {
       const user = await User.findById(userId);
-      const plan = await SubscriptionPlanModel.findOne({ isActive: true });
+      const plan = await SubscriptionPlanModel.findById(subscription.planId);
 
       if (user) {
         const planName = plan?.name || "Business Plan";
@@ -420,6 +629,8 @@ export const verifySubscription = async (
         tier: subscription.tier,
         duration: subscription.duration,
         amount: subscription.amount,
+        baseAmount: subscription.baseAmount,
+        prorationCredit: subscription.prorationCredit,
         currency: subscription.currency,
       },
       message:
@@ -507,8 +718,18 @@ export const getSubscriptionDetails = async (
         graceDaysRemaining: graceDaysRemaining,
         duration: subscription.duration,
         amount: subscription.amount,
+        baseAmount: subscription.baseAmount,
+        prorationCredit: subscription.prorationCredit,
         currency: subscription.currency,
         isExpiring: daysRemaining <= 7, // Flag if expiring in 7 days
+        scheduledChange: subscription.scheduledPlanId ? {
+          planId: subscription.scheduledPlanId,
+          tier: subscription.scheduledTier,
+          amount: subscription.scheduledAmount,
+          effectiveDate: subscription.scheduledEffectiveDate,
+          requestedAt: subscription.scheduledAt,
+          changeType: subscription.changeType,
+        } : null,
         // Transaction details
         razorpayPaymentId: subscription.razorpayPaymentId,
         razorpayOrderId: subscription.razorpayOrderId,
@@ -720,6 +941,464 @@ export const getInvoice = async (
  * Check subscription status for authenticated user
  * Returns detailed subscription information
  */
+/**
+ * POST /api/subscription/upgrade
+ * Upgrade active subscription to a higher-priced plan
+ * Calculates remaining credit: credit = amount - (amount / totalDays * daysElapsed)
+ * Charges: newPlanPrice - remainingCredit
+ * Protected endpoint (auth + business required)
+ */
+export const upgradeSubscription = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id || (req as any).user?._id;
+    const { planId, tier } = req.body;
+
+    if (!userId) {
+      resStatusData(res, "error", "User not authenticated", {});
+      return;
+    }
+
+    if (!planId || !tier) {
+      resStatusData(res, "error", "planId and tier are required", {});
+      return;
+    }
+
+    // Find current active subscription
+    const currentSubscription = await SubscriptionModel.findOne({
+      userId,
+      status: { $in: ["active", "expiring_soon"] },
+      endDate: { $gt: new Date() },
+    }).populate("planId");
+
+    if (!currentSubscription) {
+      resStatusData(res, "error", "No active subscription found to upgrade", {});
+      return;
+    }
+
+    // Fetch the target plan
+    const targetPlan = await SubscriptionPlanModel.findById(planId);
+    if (!targetPlan || !targetPlan.isActive) {
+      resStatusData(res, "error", "Target subscription plan not found or inactive", {});
+      return;
+    }
+
+    const targetTier = targetPlan.tiers.find((t) => t.id === tier);
+    if (!targetTier) {
+      resStatusData(res, "error", "Selected tier not available in the target plan", {});
+      return;
+    }
+
+    const currentPlan = currentSubscription.planId as any;
+    const currentTier = getPlanTier(currentPlan, currentSubscription.tier);
+    const currentPrice = Number(currentTier?.price ?? currentSubscription.amount ?? 0);
+    const newPrice = Number(targetTier.price);
+
+    // Enforce that this is indeed an upgrade (new price must be higher)
+    if (newPrice <= currentPrice) {
+      resStatusData(res, "error", "Target plan must be more expensive than current plan for an upgrade. Use /downgrade for plan reductions.", {
+        currentPlanPrice: currentPrice,
+        targetPlanPrice: newPrice,
+      });
+      return;
+    }
+
+    // Check if same plan + tier
+    const currentPlanId = currentPlan?._id ? String(currentPlan._id) : String(currentSubscription.planId);
+    if (currentPlanId === String(planId) && currentSubscription.tier === tier) {
+      resStatusData(res, "error", "You are already subscribed to this plan and tier.", {});
+      return;
+    }
+
+    // --- Proration Calculation ---
+    // Formula: remainingCredit = paidAmount - (paidAmount / totalDays * daysElapsed)
+    const now = new Date();
+    const startDate = new Date(currentSubscription.startDate);
+    const endDate = new Date(currentSubscription.endDate);
+
+    const totalMs = Math.max(1, endDate.getTime() - startDate.getTime());
+    const elapsedMs = Math.max(0, now.getTime() - startDate.getTime());
+    const remainingMs = Math.max(0, endDate.getTime() - now.getTime());
+
+    const totalDays = Math.ceil(totalMs / DAY_IN_MS);
+    const elapsedDays = Math.floor(elapsedMs / DAY_IN_MS);
+    const remainingDays = Math.ceil(remainingMs / DAY_IN_MS);
+
+    const paidAmount = Number(currentSubscription.amount);
+    const dailyRate = paidAmount / totalDays;
+    const consumedValue = Number((dailyRate * elapsedDays).toFixed(2));
+    const remainingCredit = Number((paidAmount - consumedValue).toFixed(2));
+
+    const amountToPay = Number(Math.max(0, newPrice - remainingCredit).toFixed(2));
+
+    const user = await User.findById(userId);
+    if (!user) {
+      resStatusData(res, "error", "User not found", {});
+      return;
+    }
+
+    // If credit fully covers the upgrade cost
+    if (amountToPay <= 0) {
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      try {
+        // Mark old subscription as expired/replaced
+        currentSubscription.status = "expired";
+        currentSubscription.cancellationReason = "Upgraded to higher plan";
+        currentSubscription.cancellationDate = now;
+        await currentSubscription.save({ session });
+
+        // Create new upgraded subscription immediately (free)
+        const newEndDate = new Date(now);
+        newEndDate.setMonth(newEndDate.getMonth() + targetTier.duration);
+        const newGraceEndDate = new Date(newEndDate);
+        newGraceEndDate.setDate(newGraceEndDate.getDate() + GRACE_PERIOD_DAYS);
+
+        const newSubscription = await SubscriptionModel.create([{
+          userId,
+          planId,
+          tier,
+          duration: targetTier.duration,
+          status: "active",
+          paymentStatus: "completed",
+          startDate: now,
+          endDate: newEndDate,
+          graceEndDate: newGraceEndDate,
+          isInGracePeriod: false,
+          amount: 0,
+          baseAmount: newPrice,
+          prorationCredit: remainingCredit,
+          prorationDaysRemaining: remainingDays,
+          prorationTotalDays: totalDays,
+          changeType: "upgrade",
+          replacesSubscriptionId: currentSubscription._id as any,
+          currency: "INR",
+          razorpayOrderId: `FREE-UP-${Date.now()}`.slice(0, 40),
+          metadata: {
+            userAgent: req.get("user-agent"),
+            ipAddress: req.ip,
+            source: "web",
+          },
+        }], { session });
+
+        await User.findByIdAndUpdate(
+          userId,
+          {
+            currentSubscriptionId: newSubscription[0]._id,
+            hasActiveSubscription: true,
+            subscriptionExpiryDate: newEndDate,
+          },
+          { session }
+        );
+
+        await session.commitTransaction();
+
+        try {
+          await notifySubscriptionUpgrade(userId.toString(), currentSubscription.tier, tier);
+        } catch (_) {}
+
+        resStatusData(res, "success", "Upgrade completed — fully covered by remaining credit", {
+          paymentRequired: false,
+          subscriptionId: newSubscription[0]._id,
+          previousPlan: {
+            tier: currentSubscription.tier,
+            amountPaid: paidAmount,
+          },
+          prorationDetails: {
+            totalDays,
+            elapsedDays,
+            remainingDays,
+            dailyRate: Number(dailyRate.toFixed(2)),
+            consumedValue,
+            remainingCredit,
+          },
+          newPlan: {
+            planId,
+            tier,
+            basePrice: newPrice,
+            amountCharged: 0,
+            startDate: now,
+            endDate: newEndDate,
+          },
+        });
+        return;
+      } catch (txError) {
+        await session.abortTransaction();
+        throw txError;
+      } finally {
+        session.endSession();
+      }
+    }
+
+    // Payment is required — create Razorpay order for the difference
+    const razorpayOrder = await razorpay.orders.create({
+      amount: Math.round(amountToPay * 100), // paise
+      currency: "INR",
+      receipt: `UP-${Date.now()}`.slice(0, 40),
+      notes: {
+        userId: String(userId),
+        planId: String(planId),
+        tier,
+        duration: String(targetTier.duration),
+        changeType: "upgrade",
+        replacesSubscriptionId: String(currentSubscription._id),
+        baseAmount: String(newPrice),
+        prorationCredit: String(remainingCredit),
+        elapsedDays: String(elapsedDays),
+        remainingDays: String(remainingDays),
+        totalDays: String(totalDays),
+      },
+    });
+
+    // Upsert pending upgrade subscription record
+    let pendingUpgrade = await SubscriptionModel.findOne({
+      userId,
+      status: "pending",
+      paymentStatus: "pending",
+      changeType: "upgrade",
+      replacesSubscriptionId: currentSubscription._id,
+    });
+
+    if (pendingUpgrade) {
+      pendingUpgrade.planId = planId as any;
+      pendingUpgrade.tier = tier;
+      pendingUpgrade.duration = targetTier.duration;
+      pendingUpgrade.amount = amountToPay;
+      pendingUpgrade.baseAmount = newPrice;
+      pendingUpgrade.prorationCredit = remainingCredit;
+      pendingUpgrade.prorationDaysRemaining = remainingDays;
+      pendingUpgrade.prorationTotalDays = totalDays;
+      pendingUpgrade.razorpayOrderId = razorpayOrder.id;
+      pendingUpgrade.razorpayPaymentId = undefined;
+      pendingUpgrade.razorpaySignature = undefined;
+      await pendingUpgrade.save();
+    } else {
+      pendingUpgrade = await SubscriptionModel.create({
+        userId,
+        planId,
+        tier,
+        duration: targetTier.duration,
+        status: "pending",
+        paymentStatus: "pending",
+        amount: amountToPay,
+        baseAmount: newPrice,
+        prorationCredit: remainingCredit,
+        prorationDaysRemaining: remainingDays,
+        prorationTotalDays: totalDays,
+        changeType: "upgrade",
+        replacesSubscriptionId: currentSubscription._id,
+        currency: "INR",
+        razorpayOrderId: razorpayOrder.id,
+        metadata: {
+          userAgent: req.get("user-agent"),
+          ipAddress: req.ip,
+          source: "web",
+        },
+      });
+    }
+
+    resStatusData(res, "success", "Upgrade order created — proceed with payment", {
+      paymentRequired: true,
+      orderId: razorpayOrder.id,
+      subscriptionId: pendingUpgrade._id,
+      currency: "INR",
+      userEmail: user.email,
+      prorationDetails: {
+        totalDays,
+        elapsedDays,
+        remainingDays,
+        dailyRate: Number(dailyRate.toFixed(2)),
+        consumedValue,
+        remainingCredit,
+        formula: `${paidAmount} - (${paidAmount}/${totalDays} × ${elapsedDays}) = ${remainingCredit} credit`,
+      },
+      pricing: {
+        currentPlanPrice: currentPrice,
+        newPlanPrice: newPrice,
+        remainingCredit,
+        amountToPay,
+        breakdown: `₹${newPrice} - ₹${remainingCredit} credit = ₹${amountToPay}`,
+      },
+      currentPlan: {
+        tier: currentSubscription.tier,
+        endDate: currentSubscription.endDate,
+        daysRemaining: remainingDays,
+      },
+      newPlan: {
+        planId,
+        tier,
+        duration: `${targetTier.duration} month(s)`,
+        basePrice: newPrice,
+        discount: targetTier.discount,
+        description: targetTier.description,
+      },
+    });
+  } catch (error: any) {
+    console.error("[Upgrade] Error:", error);
+    resStatusData(res, "error", "Failed to process upgrade", {
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/subscription/downgrade
+ * Downgrade active subscription to a lower-priced plan
+ * Calculates remaining credit: credit = amount - (amount / totalDays * daysElapsed)
+ * The downgrade is scheduled at the END of the current billing cycle.
+ * Remaining credit is stored and applied to the next billing cycle automatically.
+ * Protected endpoint (auth + business required)
+ */
+export const downgradeSubscription = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id || (req as any).user?._id;
+    const { planId, tier } = req.body;
+
+    if (!userId) {
+      resStatusData(res, "error", "User not authenticated", {});
+      return;
+    }
+
+    if (!planId || !tier) {
+      resStatusData(res, "error", "planId and tier are required", {});
+      return;
+    }
+
+    // Find current active subscription
+    const currentSubscription = await SubscriptionModel.findOne({
+      userId,
+      status: { $in: ["active", "expiring_soon"] },
+      endDate: { $gt: new Date() },
+    }).populate("planId");
+
+    if (!currentSubscription) {
+      resStatusData(res, "error", "No active subscription found to downgrade", {});
+      return;
+    }
+
+    // Fetch the target plan
+    const targetPlan = await SubscriptionPlanModel.findById(planId);
+    if (!targetPlan || !targetPlan.isActive) {
+      resStatusData(res, "error", "Target subscription plan not found or inactive", {});
+      return;
+    }
+
+    const targetTier = targetPlan.tiers.find((t) => t.id === tier);
+    if (!targetTier) {
+      resStatusData(res, "error", "Selected tier not available in the target plan", {});
+      return;
+    }
+
+    const currentPlan = currentSubscription.planId as any;
+    const currentTier = getPlanTier(currentPlan, currentSubscription.tier);
+    const currentPrice = Number(currentTier?.price ?? currentSubscription.amount ?? 0);
+    const newPrice = Number(targetTier.price);
+
+    // Enforce that this is indeed a downgrade
+    if (newPrice >= currentPrice) {
+      resStatusData(res, "error", "Target plan must be cheaper than current plan for a downgrade. Use /upgrade for plan increases.", {
+        currentPlanPrice: currentPrice,
+        targetPlanPrice: newPrice,
+      });
+      return;
+    }
+
+    // Check if same plan + tier
+    const currentPlanId = currentPlan?._id ? String(currentPlan._id) : String(currentSubscription.planId);
+    if (currentPlanId === String(planId) && currentSubscription.tier === tier) {
+      resStatusData(res, "error", "You are already on this plan and tier.", {});
+      return;
+    }
+
+    // --- Proration Calculation ---
+    // Formula: remainingCredit = paidAmount - (paidAmount / totalDays * daysElapsed)
+    const now = new Date();
+    const startDate = new Date(currentSubscription.startDate);
+    const endDate = new Date(currentSubscription.endDate);
+
+    const totalMs = Math.max(1, endDate.getTime() - startDate.getTime());
+    const elapsedMs = Math.max(0, now.getTime() - startDate.getTime());
+    const remainingMs = Math.max(0, endDate.getTime() - now.getTime());
+
+    const totalDays = Math.ceil(totalMs / DAY_IN_MS);
+    const elapsedDays = Math.floor(elapsedMs / DAY_IN_MS);
+    const remainingDays = Math.ceil(remainingMs / DAY_IN_MS);
+
+    const paidAmount = Number(currentSubscription.amount);
+    const dailyRate = paidAmount / totalDays;
+    const consumedValue = Number((dailyRate * elapsedDays).toFixed(2));
+    const remainingCredit = Number((paidAmount - consumedValue).toFixed(2));
+
+    // For downgrade: keep using the current plan until it expires,
+    // then start the new cheaper plan with the remaining credit applied.
+    // The credit reduces the cost of the next (downgraded) billing cycle.
+    const creditAppliedToNewPlan = Number(Math.min(remainingCredit, newPrice).toFixed(2));
+    const amountDueAtRenewal = Number(Math.max(0, newPrice - creditAppliedToNewPlan).toFixed(2));
+
+    // Check if a downgrade is already scheduled and cancel it first
+    if (currentSubscription.scheduledPlanId) {
+      currentSubscription.scheduledPlanId = undefined as any;
+      currentSubscription.scheduledTier = undefined;
+      currentSubscription.scheduledAmount = undefined;
+      currentSubscription.scheduledEffectiveDate = undefined;
+      currentSubscription.scheduledAt = undefined;
+    }
+
+    // Schedule the downgrade to take effect at end of current billing cycle
+    currentSubscription.changeType = "downgrade";
+    currentSubscription.scheduledPlanId = planId as any;
+    currentSubscription.scheduledTier = tier;
+    currentSubscription.scheduledAmount = amountDueAtRenewal; // what user pays at renewal
+    currentSubscription.scheduledEffectiveDate = endDate;
+    currentSubscription.scheduledAt = now;
+    // Store the remaining credit in prorationCredit for use at renewal
+    currentSubscription.prorationCredit = remainingCredit;
+    currentSubscription.prorationDaysRemaining = remainingDays;
+    currentSubscription.prorationTotalDays = totalDays;
+
+    await currentSubscription.save();
+
+    resStatusData(res, "success", "Downgrade scheduled successfully", {
+      paymentRequired: false,
+      message: `Your current ${currentSubscription.tier} plan remains active until ${endDate.toDateString()}. The downgrade to ${tier} will apply automatically at renewal.`,
+      prorationDetails: {
+        totalDays,
+        elapsedDays,
+        remainingDays,
+        dailyRate: Number(dailyRate.toFixed(2)),
+        consumedValue,
+        remainingCredit,
+        formula: `${paidAmount} - (${paidAmount}/${totalDays} × ${elapsedDays}) = ${remainingCredit} credit`,
+      },
+      currentPlan: {
+        tier: currentSubscription.tier,
+        endDate,
+        daysRemaining: remainingDays,
+        amountPaid: paidAmount,
+      },
+      scheduledDowngrade: {
+        planId,
+        tier,
+        newPlanBasePrice: newPrice,
+        remainingCreditApplied: creditAppliedToNewPlan,
+        amountDueAtRenewal,
+        effectiveDate: endDate,
+        breakdown: `₹${newPrice} - ₹${creditAppliedToNewPlan} credit = ₹${amountDueAtRenewal} due at renewal`,
+      },
+    });
+  } catch (error: any) {
+    console.error("[Downgrade] Error:", error);
+    resStatusData(res, "error", "Failed to process downgrade", {
+      error: error.message,
+    });
+  }
+};
+
 export const getSubscriptionStatus = async (
   req: Request,
   res: Response

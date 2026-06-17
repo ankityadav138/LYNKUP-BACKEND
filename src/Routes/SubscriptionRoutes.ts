@@ -8,6 +8,8 @@ import {
   cancelSubscription,
   getInvoice,
   getSubscriptionStatus,
+  upgradeSubscription,
+  downgradeSubscription,
 } from "../Controllers/SubscriptionController";
 import { authMiddleware, businessMiddleware } from "../Middelware/Auth";
 import { requireDocumentVerification } from "../Middelware/DocumentVerificationMiddleware";
@@ -25,5 +27,9 @@ router.get("/status", businessMiddleware, getSubscriptionStatus);
 router.get("/history", businessMiddleware, getSubscriptionHistory);
 router.post("/cancel", businessMiddleware, cancelSubscription);
 router.get("/invoice/:subscriptionId", businessMiddleware, getInvoice);
+
+// Upgrade & Downgrade routes
+router.post("/upgrade", businessMiddleware, requireDocumentVerification, upgradeSubscription);
+router.post("/downgrade", businessMiddleware, requireDocumentVerification, downgradeSubscription);
 
 export default router;
