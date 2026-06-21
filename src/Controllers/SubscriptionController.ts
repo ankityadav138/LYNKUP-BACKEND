@@ -183,7 +183,7 @@ export const createSubscriptionOrder = async (
         }
 
         const razorpayOrder = await razorpay.orders.create({
-          amount: Math.round(adjustedAmount * 100),
+          amount: Math.round(adjustedAmount * 1.18 * 100),
           currency: "INR",
           receipt: `SUB-UP-${Date.now()}`.slice(0, 40),
           notes: {
@@ -305,9 +305,9 @@ export const createSubscriptionOrder = async (
       return;
     }
 
-    // Create Razorpay order for a new subscription
+    // Create Razorpay order for a new subscription with 18% GST
     const razorpayOrder = await razorpay.orders.create({
-      amount: selectedPrice * 100,
+      amount: Math.round(selectedPrice * 1.18 * 100),
       currency: "INR",
       receipt: `SUB-${Date.now()}`.slice(0, 40), // Truncate to 40 chars
       notes: {
@@ -1132,9 +1132,9 @@ export const upgradeSubscription = async (
       }
     }
 
-    // Payment is required — create Razorpay order for the difference
+    // Payment is required — create Razorpay order for the difference (include 18% GST)
     const razorpayOrder = await razorpay.orders.create({
-      amount: Math.round(amountToPay * 100), // paise
+      amount: Math.round(amountToPay * 1.18 * 100), // paise
       currency: "INR",
       receipt: `UP-${Date.now()}`.slice(0, 40),
       notes: {

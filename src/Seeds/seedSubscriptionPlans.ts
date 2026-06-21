@@ -61,10 +61,10 @@ const seedSubscriptionPlans = async () => {
           {
             id: "pro",
             duration: 1,
-            price: 10000,
+            price: 8000,
             discount: 0,
             description: "1 Month - Premium features and support",
-            monthlyEquivalent: 10000,
+            monthlyEquivalent: 8000,
           },
         ],
         features: [
