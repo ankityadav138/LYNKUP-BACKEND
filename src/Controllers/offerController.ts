@@ -292,10 +292,8 @@
 //   console.log("✅ Collaboration validation passed");
 
 //   // Calculate total lock amount
-//   let totalLockAmount = MINIMUM_OFFER_AMOUNT; // ₹20,000 security deposit
-//   if (collaboration_type === "paid" && fixed_amount) {
-//     totalLockAmount += parseFloat(fixed_amount);
-//   }
+//   let totalLockAmount = MINIMUM_OFFER_AMOUNT; // ₹20,000 security deposit only
+//   // creator payment ignored
 
 //   console.log("💰 Total Lock Amount:", totalLockAmount);
 
@@ -312,7 +310,7 @@
 //         code: "INSUFFICIENT_BALANCE",
 //         breakdown: {
 //           security_deposit: MINIMUM_OFFER_AMOUNT,
-//           creator_payment: collaboration_type === "paid" ? parseFloat(fixed_amount) : 0,
+//           creator_payment: 0,
 //           total_required: totalLockAmount,
 //         },
 //         available_balance: wallet.available_balance,
@@ -2183,7 +2181,7 @@ export const createOfferByBusiness = async (
   });
 
   wallet = await Wallet.findOne({ user_id: business_id });
-  console.log("Latest Wallet data,",wallet)
+  console.log("Latest Wallet data,", wallet)
 
   // Create wallet if doesn't exist
   if (!wallet) {
@@ -2263,10 +2261,7 @@ export const createOfferByBusiness = async (
     : 0;
 
   // Calculate total lock amount
-  let totalLockAmount = MINIMUM_OFFER_AMOUNT; // ₹20,000 security deposit
-  if (collaboration_type === "paid" && fixed_amount) {
-    totalLockAmount += parseFloat(fixed_amount);
-  }
+  let totalLockAmount = MINIMUM_OFFER_AMOUNT; // ₹20,000 security deposit only
 
   if (collaboration_type === "hosting") {
     totalLockAmount = 0; // Hosting offers are free and do not require wallet balance
@@ -2288,7 +2283,7 @@ export const createOfferByBusiness = async (
         code: "INSUFFICIENT_BALANCE",
         breakdown: {
           security_deposit: MINIMUM_OFFER_AMOUNT,
-          creator_payment: collaboration_type === "paid" ? parseFloat(fixed_amount) : 0,
+          creator_payment: 0,
           total_required: totalLockAmount,
         },
         available_balance: wallet.available_balance,
@@ -2320,7 +2315,7 @@ export const createOfferByBusiness = async (
       if (req.user.userType !== "admin" && collaboration_type !== "hosting") {
         const updatedWallet = await wallet.lockAmount(totalLockAmount);
 
-       
+
 
         // Double-check: Refetch wallet from DB to confirm save
         const walletCheck = await Wallet.findById(wallet._id);
@@ -2412,7 +2407,7 @@ export const createOfferByBusiness = async (
         }
       }
 
-   
+
 
       resStatusData(res, "success", "Offer created successfully by business", {
         offer,
@@ -2435,7 +2430,7 @@ export const createOfferByBusiness = async (
       if (req.user.userType !== "admin" && collaboration_type !== "hosting") {
         const updatedWallet = await wallet.lockAmount(totalLockAmount);
         // Double-check: Refetch wallet from DB to confirm save
-        const walletCheck = await Wallet.findById(wallet._id); 
+        const walletCheck = await Wallet.findById(wallet._id);
       } else {
         console.log("⏭️ Skipping wallet lock for admin user (booking mode)");
       }
@@ -2517,7 +2512,7 @@ export const createOfferByBusiness = async (
         }
       }
 
-     
+
 
       resStatusData(res, "success", "Offer created successfully by business", {
         offer,
@@ -3103,15 +3098,15 @@ export const showOfferUser = async (
     console.log("🔍 DEBUG: Building business filter:", businessFilter);
 
     // Get all unique business IDs from all live offers (don't filter by userType)
-    const allLiveOffers = await OfferModel.find({ 
-      isdeleted: false, 
-      status: "live" 
+    const allLiveOffers = await OfferModel.find({
+      isdeleted: false,
+      status: "live"
     }).select("business_id").lean();
-    
+
     console.log("📊 DEBUG: Found", allLiveOffers.length, "live offers total");
-    
+
     const allOfferBusinessIds = [...new Set(allLiveOffers.map(o => o.business_id?.toString()))].filter(Boolean);
-    
+
     console.log("🏢 DEBUG: Found", allOfferBusinessIds.length, "unique businesses with live offers");
 
     // Now filter these businesses by location if needed
@@ -3280,12 +3275,12 @@ export const showOfferUser = async (
       },
       { $sort: { createdAt: -1 } },
     ]);
-    
+
     console.log("📊 DEBUG: Found", offers.length, "offers from", businessIds.length, "businesses");
     if (offers.length > 0) {
       console.log("📋 Sample Offer Names:", offers.slice(0, 3).map((o: any) => o.name || o.debug_name));
     }
-    
+
     if (selectedDate) {
       const selectedDay = new Date(selectedDate).toLocaleString('en-US', { weekday: 'long' });
       const offersWithLock = offers.map((offer: any) => {
