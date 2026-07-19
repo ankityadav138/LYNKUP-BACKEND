@@ -273,3 +273,75 @@ export const sendOtpOnMailMailgun = async (email: string, otp: string) => {
           : `User has received a strike. Total strikes: ${user.strikeCount}`,
       }
   }
+
+export const sendSubAdminCredentialsEmail = async (
+  to: string,
+  name: string,
+  password: string,
+  loginUrl: string = "https://admin.lynkup.co.in"
+) => {
+  if (!process.env.MAILGUN_API_KEY || process.env.MAILGUN_API_KEY.includes('1234567890')) {
+    console.error(`[Email] Mailgun not configured — Sub-admin credentials for ${to}: password=${password}`);
+    return;
+  }
+
+  const mailAuth = {
+    auth: {
+      api_key: process.env.MAILGUN_API_KEY as string,
+      domain: process.env.MAILGUN_DOMAIN as string,
+    },
+  };
+
+  const mg2 = require("nodemailer-mailgun-transport");
+  const mailTransporter = nodemailer.createTransport(mg2(mailAuth));
+
+  await mailTransporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to,
+    subject: `Welcome to LynkUp Admin Panel — Your Login Credentials`,
+    html: `
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; background-color: #f4f6f9; padding: 20px; }
+            .container { background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+            .header { font-size: 22px; font-weight: bold; color: #1a1a2e; margin-bottom: 8px; }
+            .subtitle { color: #555; margin-bottom: 24px; }
+            .creds-box { background: #f0f4ff; border-left: 4px solid #4f46e5; padding: 16px 20px; border-radius: 6px; margin: 20px 0; }
+            .creds-row { margin: 8px 0; font-size: 15px; }
+            .label { color: #888; font-size: 13px; margin-bottom: 2px; }
+            .value { font-weight: bold; color: #1a1a2e; font-size: 16px; letter-spacing: 0.5px; }
+            .btn { display: inline-block; background: #4f46e5; color: white !important; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 24px; }
+            .warning { background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px; padding: 12px 16px; margin-top: 20px; font-size: 13px; color: #856404; }
+            .footer { margin-top: 30px; font-size: 12px; color: #aaa; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">Welcome to LynkUp Admin Panel! 🎉</div>
+            <div class="subtitle">Hi <strong>${name}</strong>, an admin account has been created for you.</div>
+
+            <div class="creds-box">
+              <div class="creds-row">
+                <div class="label">Email Address</div>
+                <div class="value">${to}</div>
+              </div>
+              <div class="creds-row" style="margin-top:14px">
+                <div class="label">Temporary Password</div>
+                <div class="value">${password}</div>
+              </div>
+            </div>
+
+            <a href="${loginUrl}" class="btn">Login to Dashboard →</a>
+
+            <div class="warning">
+              ⚠️ Please change your password immediately after your first login for security reasons.
+            </div>
+
+            <div class="footer">— The LynkUp Team | If you did not expect this email, please ignore it.</div>
+          </div>
+        </body>
+      </html>
+    `,
+  });
+};

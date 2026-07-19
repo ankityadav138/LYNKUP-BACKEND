@@ -4,7 +4,7 @@ import { responsestatusmessage, resStatus, resStatusData, resStatusTryCatch } fr
 import BookingModel from "../Models/Booking";
 import influencerRating from "../Models/influencerRating";
 export const showProfile = async (req: Request | any, res: Response): Promise<void> => {
-    const userId = req.user._id;
+  const userId = req.user._id;
   const user = await UserModel.findById(userId).select("-password -__v");
   if (!user) {
     resStatus(res, "false", "User not found.");
@@ -13,8 +13,9 @@ export const showProfile = async (req: Request | any, res: Response): Promise<vo
 }
 export const editProfile = async (req: Request | any, res: Response, next: NextFunction): Promise<void> => {
   const userId = req.user?._id;
+  console.log("req.body-->", req.body);
   try {
-    const { firstName, lastName, dietary_prefernces, email, allergy, app_notification, email_notification } = req.body;
+    const { firstName, lastName, dietary_prefernces, email, allergy, app_notification, email_notification, upi_Id } = req.body;
 
     const user = await UserModel.findById(userId);
     if (!user) {
@@ -45,6 +46,7 @@ export const editProfile = async (req: Request | any, res: Response, next: NextF
     if (allergy) updateData.allergy = allergy;
     if (app_notification) updateData.app_notification = app_notification;
     if (email_notification) updateData.email_notification = email_notification;
+    if (upi_Id) updateData.upi_Id = upi_Id;
     if (req.file) {
       updateData.profileImage = (req.file as any).location || `image/${req.file.filename}`;
     }
@@ -100,48 +102,49 @@ export const editProfileForAdmin = async (req: Request | any, res: Response, nex
   const userId = req.user?._id;
   try {
     const { firstName, lastName, name, email, address, location } = req.body;
-    if(!(firstName ||lastName||name||email||location)){
-      resStatus(res,"false",'atleast one field required');
-    }else{
-    const user = await UserModel.findById(userId);
-    const files = req.files;
-    const mediaFiles = files ? files.map((file: any) => file.location) : [];
-    if (!user) {
-      responsestatusmessage(res, "false", "User not found.");
-    }
-    else if (user.blocked) {
-      responsestatusmessage(res, "false", "User is blocked.");
-    }else{
-    const updateData: any = {};
-    if (firstName) updateData.firstName = firstName;
-    if (lastName) updateData.lastName = lastName;
-    if (name) updateData.name = name;
-    if (email) updateData.email = email.toLowerCase();
-    if (address) updateData.address = address;
-    if (location) {
-      const parsedLocation = typeof location === "string" ? JSON.parse(location) : location;
-      if (parsedLocation?.coordinates?.length === 2) {
-        updateData.location = {
-          type: "Point",
-          coordinates: [
-            parseFloat(parsedLocation.coordinates[0]),
-            parseFloat(parsedLocation.coordinates[1])
-          ],
-          address: parsedLocation.address || ""
-        };
+    if (!(firstName || lastName || name || email || location)) {
+      resStatus(res, "false", 'atleast one field required');
+    } else {
+      const user = await UserModel.findById(userId);
+      const files = req.files;
+      const mediaFiles = files ? files.map((file: any) => file.location) : [];
+      if (!user) {
+        responsestatusmessage(res, "false", "User not found.");
+      }
+      else if (user.blocked) {
+        responsestatusmessage(res, "false", "User is blocked.");
+      } else {
+        const updateData: any = {};
+        if (firstName) updateData.firstName = firstName;
+        if (lastName) updateData.lastName = lastName;
+        if (name) updateData.name = name;
+        if (email) updateData.email = email.toLowerCase();
+        if (address) updateData.address = address;
+        if (location) {
+          const parsedLocation = typeof location === "string" ? JSON.parse(location) : location;
+          if (parsedLocation?.coordinates?.length === 2) {
+            updateData.location = {
+              type: "Point",
+              coordinates: [
+                parseFloat(parsedLocation.coordinates[0]),
+                parseFloat(parsedLocation.coordinates[1])
+              ],
+              address: parsedLocation.address || ""
+            };
+          }
+        }
+        if (mediaFiles.length) {
+          updateData.document = mediaFiles;
+        }
+        const updatedUser = await UserModel.findByIdAndUpdate(userId, updateData, { new: true });
+        if (mediaFiles.length && Object.keys(updateData).length === 1) {
+          resStatusData(res, "success", "Document updated successfully.", { profileImage: updatedUser?.profileImage });
+        } else {
+          resStatusData(res, "success", "Profile updated successfully.", updatedUser);
+        }
       }
     }
-    if (mediaFiles.length) {
-      updateData.document = mediaFiles;
-    }
-    const updatedUser = await UserModel.findByIdAndUpdate(userId, updateData, { new: true });
-    if (mediaFiles.length && Object.keys(updateData).length === 1) {
-      resStatusData(res, "success", "Document updated successfully.", { profileImage: updatedUser?.profileImage });
-    } else {
-      resStatusData(res, "success", "Profile updated successfully.", updatedUser);
-    }
-  }
-  }} catch (error) {
+  } catch (error) {
     next(error);
   }
 };

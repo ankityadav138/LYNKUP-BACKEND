@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import mongoose from "mongoose";
+import Razorpay from "razorpay";
 import SubscriptionModel from "../Models/SubscriptionModel";
 import User from "../Models/UserModel";
 import OfferModel from "../Models/offerModal";
@@ -9,6 +10,12 @@ import { subscriptionNotificationService } from "../Services/SubscriptionNotific
 
 // Grace period in days
 const GRACE_PERIOD_DAYS = 3;
+
+// Initialize Razorpay for renewal order creation
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || "",
+  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
+});
 
 /**
  * Check for expired subscriptions and update their status
@@ -211,7 +218,6 @@ export const sendExpiryReminders = async () => {
       new Date()
     );
 
-    // Find subscriptions expiring in 7 days
     const now = new Date();
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -226,13 +232,10 @@ export const sendExpiryReminders = async () => {
       .populate("planId");
 
     if (expiringSubscriptions.length === 0) {
-      console.log(
-        "[Subscription Cron] No subscriptions expiring soon found"
-      );
+      console.log("[Subscription Cron] No subscriptions expiring soon found");
       return { count: 0 };
     }
 
-    // Send expiry reminder emails
     for (const subscription of expiringSubscriptions) {
       const daysRemaining = Math.ceil(
         (subscription.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
@@ -262,33 +265,24 @@ export const sendExpiryReminders = async () => {
 
         await invoiceService.sendExpiryReminder(reminderDetails);
 
-        // Send push notification about upcoming expiry
         const user = await User.findById(userId);
         if (user && user.playerId && user.playerId.length > 0) {
           await sendNotification(
             user.playerId,
             "Subscription Expiring Soon",
             `Your ${subscription.tier} subscription expires in ${daysRemaining} days. Renew now to avoid interruption!`,
-            "", // No image
+            "",
             "subscription_expiring_soon"
           );
         }
 
-        console.log(
-          `[Subscription Cron] Expiry reminder sent for user ${userId}`
-        );
+        console.log(`[Subscription Cron] Expiry reminder sent for user ${userId}`);
       } catch (error: any) {
-        console.error(
-          `[Subscription Cron] Failed to send expiry reminder:`,
-          error.message
-        );
+        console.error(`[Subscription Cron] Failed to send expiry reminder:`, error.message);
       }
     }
 
-    console.log(
-      `[Subscription Cron] Processed ${expiringSubscriptions.length} expiry reminders`
-    );
-
+    console.log(`[Subscription Cron] Processed ${expiringSubscriptions.length} expiry reminders`);
     return { count: expiringSubscriptions.length };
   } catch (error) {
     console.error("[Subscription Cron] Error sending expiry reminders:", error);
@@ -302,12 +296,8 @@ export const sendExpiryReminders = async () => {
  */
 export const cleanupPendingSubscriptions = async () => {
   try {
-    console.log(
-      "[Subscription Cron] Cleaning up pending subscriptions at",
-      new Date()
-    );
+    console.log("[Subscription Cron] Cleaning up pending subscriptions at", new Date());
 
-    // Find pending subscriptions older than 24 hours
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const pendingSubscriptions = await SubscriptionModel.find({
@@ -317,28 +307,19 @@ export const cleanupPendingSubscriptions = async () => {
     });
 
     if (pendingSubscriptions.length === 0) {
-      console.log(
-        "[Subscription Cron] No old pending subscriptions found"
-      );
+      console.log("[Subscription Cron] No old pending subscriptions found");
       return { count: 0 };
     }
 
-    // Mark them as cancelled
     for (const subscription of pendingSubscriptions) {
       subscription.status = "cancelled";
       subscription.cancellationReason = "Automatic cleanup - payment not completed within 24 hours";
       subscription.cancellationDate = new Date();
       await subscription.save();
-
-      console.log(
-        `[Subscription Cron] Cleaned up pending subscription ${subscription._id}`
-      );
+      console.log(`[Subscription Cron] Cleaned up pending subscription ${subscription._id}`);
     }
 
-    console.log(
-      `[Subscription Cron] Cleaned up ${pendingSubscriptions.length} pending subscriptions`
-    );
-
+    console.log(`[Subscription Cron] Cleaned up ${pendingSubscriptions.length} pending subscriptions`);
     return { count: pendingSubscriptions.length };
   } catch (error) {
     console.error("[Subscription Cron] Error cleaning up pending subscriptions:", error);
@@ -356,7 +337,6 @@ export const updateWithdrawalEligibility = async () => {
 
     const now = new Date();
 
-    // Find offers where eligibility date has passed but flag is not set
     const eligibleOffers = await OfferModel.find({
       is_eligible_for_withdrawal: false,
       withdrawal_eligibility_date: { $lte: now },
@@ -369,7 +349,6 @@ export const updateWithdrawalEligibility = async () => {
       return { count: 0 };
     }
 
-    // Update all eligible offers
     const result = await OfferModel.updateMany(
       {
         is_eligible_for_withdrawal: false,
@@ -377,14 +356,11 @@ export const updateWithdrawalEligibility = async () => {
         locked_amount: { $gt: 0 },
         isdeleted: false,
       },
-      {
-        $set: { is_eligible_for_withdrawal: true },
-      }
+      { $set: { is_eligible_for_withdrawal: true } }
     );
 
     console.log(`[Withdrawal Cron] ✓ Marked ${result.modifiedCount} offers as eligible for withdrawal`);
 
-    // Optional: Send notification to business users
     for (const offer of eligibleOffers) {
       try {
         const user = await User.findById(offer.business_id);
@@ -410,6 +386,224 @@ export const updateWithdrawalEligibility = async () => {
 };
 
 /**
+ * Process auto-renewals: for subscriptions expiring within 3 days with auto-renewal ON,
+ * create a Razorpay order and send a one-tap renewal notification.
+ * Runs daily at 02:00 UTC
+ */
+export const processAutoRenewals = async () => {
+  try {
+    console.log("[AutoRenewal Cron] Processing auto-renewals at", new Date());
+
+    const now = new Date();
+    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+    const renewalCandidates = await SubscriptionModel.find({
+      autoRenewalEnabled: true,
+      status: { $in: ["active", "expiring_soon"] },
+      endDate: { $lte: threeDaysFromNow, $gte: now },
+      $or: [
+        { lastRenewalAttemptAt: { $exists: false } },
+        { lastRenewalAttemptAt: { $lt: new Date(now.getTime() - 23 * 60 * 60 * 1000) } },
+      ],
+    }).populate("planId");
+
+    if (renewalCandidates.length === 0) {
+      console.log("[AutoRenewal Cron] No auto-renewal candidates found");
+      return { count: 0 };
+    }
+
+    let processed = 0;
+    let failed = 0;
+
+    for (const subscription of renewalCandidates) {
+      try {
+        const user = await User.findById(subscription.userId);
+        if (!user) continue;
+
+        const daysUntilExpiry = Math.ceil(
+          (subscription.endDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)
+        );
+
+        // Create Razorpay order for the renewal (with 18% GST)
+        let razorpayOrder;
+        try {
+          razorpayOrder = await razorpay.orders.create({
+            amount: Math.round(subscription.amount * 1.18 * 100),
+            currency: "INR",
+            receipt: `RNW-${Date.now()}`.slice(0, 40),
+            notes: {
+              userId: String(subscription.userId),
+              planId: String(subscription.planId),
+              tier: subscription.tier,
+              duration: String(subscription.duration),
+              changeType: "renewal",
+              previousSubscriptionId: String(subscription._id),
+            },
+          });
+        } catch (razorpayErr: any) {
+          console.error(`[AutoRenewal Cron] Razorpay order failed for user ${subscription.userId}:`, razorpayErr.message);
+          subscription.renewalFailureCount = (subscription.renewalFailureCount || 0) + 1;
+          subscription.renewalFailureReason = `Order creation failed: ${razorpayErr.message}`;
+          subscription.paymentFailedAt = now;
+          subscription.lastRenewalAttemptAt = now;
+          await subscription.save();
+          if (user.playerId && user.playerId.length > 0) {
+            await sendNotification(
+              user.playerId,
+              "⚠️ Auto-Renewal Issue",
+              "We couldn't initiate your subscription renewal. Please renew manually from the app.",
+              "",
+              "auto_renewal_failed"
+            );
+          }
+          failed++;
+          continue;
+        }
+
+        // Upsert a pending renewal subscription record
+        const existingPending = await SubscriptionModel.findOne({
+          userId: subscription.userId,
+          changeType: "renewal",
+          status: "pending",
+          paymentStatus: "pending",
+        });
+
+        let renewalRecord;
+        if (existingPending) {
+          existingPending.razorpayOrderId = razorpayOrder.id;
+          existingPending.planId = subscription.planId as any;
+          existingPending.tier = subscription.tier;
+          existingPending.duration = subscription.duration;
+          existingPending.amount = subscription.amount;
+          existingPending.autoRenewalEnabled = true;
+          await existingPending.save();
+          renewalRecord = existingPending;
+        } else {
+          renewalRecord = await SubscriptionModel.create({
+            userId: subscription.userId,
+            planId: subscription.planId,
+            tier: subscription.tier,
+            duration: subscription.duration,
+            status: "pending",
+            paymentStatus: "pending",
+            amount: subscription.amount,
+            baseAmount: subscription.amount,
+            changeType: "renewal",
+            replacesSubscriptionId: subscription._id as any,
+            currency: "INR",
+            autoRenewalEnabled: true,
+            razorpayOrderId: razorpayOrder.id,
+            metadata: { source: "auto_renewal_cron" },
+          });
+        }
+
+        subscription.lastRenewalAttemptAt = now;
+        await subscription.save();
+
+        // Push notification: tap to pay
+        if (user.playerId && user.playerId.length > 0) {
+          await sendNotification(
+            user.playerId,
+            "🔄 Subscription Renewal Due",
+            `Your ${subscription.tier.toUpperCase()} plan expires in ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? "s" : ""}. Open the app to complete renewal for ₹${Math.round(subscription.amount * 1.18).toLocaleString("en-IN")}.`,
+            "",
+            "auto_renewal_reminder"
+          );
+        }
+
+        // Email reminder
+        try {
+          const reminderDetails = {
+            invoiceId: `RNW-${Date.now()}-${String(subscription.userId).slice(-6).toUpperCase()}`,
+            userName: `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() || "User",
+            userEmail: user.email || "noreply@lynkup.com",
+            subscriptionId: (renewalRecord._id as any).toString(),
+            planName: (subscription.planId as any)?.name || "Business Plan",
+            tier: subscription.tier,
+            amount: subscription.amount,
+            currency: subscription.currency || "INR",
+            startDate: subscription.startDate,
+            endDate: subscription.endDate,
+            duration: subscription.duration,
+            discount: 0,
+            features: [],
+            company: "Lynkup",
+          };
+          await invoiceService.sendExpiryReminder(reminderDetails);
+        } catch (emailErr) {
+          console.error("[AutoRenewal Cron] Email reminder failed:", emailErr);
+        }
+
+        console.log(`[AutoRenewal Cron] ✓ Renewal order ${razorpayOrder.id} created for user ${subscription.userId}`);
+        processed++;
+      } catch (err: any) {
+        console.error(`[AutoRenewal Cron] Error for subscription ${subscription._id}:`, err.message);
+        failed++;
+      }
+    }
+
+    console.log(`[AutoRenewal Cron] Done — ${processed} processed, ${failed} failed`);
+    return { processed, failed };
+  } catch (error) {
+    console.error("[AutoRenewal Cron] Fatal error:", error);
+    return { processed: 0, failed: 0, error };
+  }
+};
+
+/**
+ * Handle renewal failures: after grace period ends, mark access as restricted
+ * for users who have auto-renewal enabled but haven't paid yet.
+ * Runs daily at 03:00 UTC
+ */
+export const handleRenewalFailures = async () => {
+  try {
+    console.log("[AutoRenewal Cron] Handling renewal failures at", new Date());
+
+    const now = new Date();
+
+    const failedRenewals = await SubscriptionModel.find({
+      autoRenewalEnabled: true,
+      status: "grace_period",
+      graceEndDate: { $lt: now },
+      accessRestrictedAt: { $exists: false },
+    });
+
+    let restricted = 0;
+
+    for (const subscription of failedRenewals) {
+      try {
+        const user = await User.findById(subscription.userId);
+        if (!user) continue;
+
+        subscription.accessRestrictedAt = now;
+        await subscription.save();
+
+        if (user.playerId && user.playerId.length > 0) {
+          await sendNotification(
+            user.playerId,
+            "🚫 Access Restricted",
+            "Your subscription has expired and the grace period has ended. Renew now to restore full access.",
+            "",
+            "access_restricted"
+          );
+        }
+
+        console.log(`[AutoRenewal Cron] Access restricted for user ${subscription.userId}`);
+        restricted++;
+      } catch (err: any) {
+        console.error(`[AutoRenewal Cron] Error restricting access for ${subscription._id}:`, err.message);
+      }
+    }
+
+    console.log(`[AutoRenewal Cron] Restricted access for ${restricted} users`);
+    return { restricted };
+  } catch (error) {
+    console.error("[AutoRenewal Cron] Error handling renewal failures:", error);
+    return { restricted: 0, error };
+  }
+};
+
+/**
  * Initialize all subscription cron jobs
  * Call this in your main server file (index.ts) after database connection
  */
@@ -417,63 +611,46 @@ export const startSubscriptionCronJobs = () => {
   console.log("[Subscription Cron] Initializing cron jobs...");
 
   // Check for expired subscriptions daily at 00:00 UTC
-  cron.schedule("0 0 * * *", () => {
-    checkExpiredSubscriptions();
-  });
+  cron.schedule("0 0 * * *", () => { checkExpiredSubscriptions(); });
   console.log("[Subscription Cron] ✓ Scheduled: Check expired subscriptions (00:00 UTC)");
 
+  // Update withdrawal eligibility daily at 01:00 UTC
+  cron.schedule("0 1 * * *", () => { updateWithdrawalEligibility(); });
+  console.log("[Withdrawal Cron] ✓ Scheduled: Update withdrawal eligibility (01:00 UTC)");
+
+  // Process auto-renewals: create orders + notify 3 days before expiry (02:00 UTC)
+  cron.schedule("0 2 * * *", () => { processAutoRenewals(); });
+  console.log("[AutoRenewal Cron] ✓ Scheduled: Process auto-renewals (02:00 UTC)");
+
+  // Handle renewal failures: restrict access after grace period ends (03:00 UTC)
+  cron.schedule("0 3 * * *", () => { handleRenewalFailures(); });
+  console.log("[AutoRenewal Cron] ✓ Scheduled: Handle renewal failures (03:00 UTC)");
+
   // Mark subscriptions as expiring_soon daily at 06:00 UTC
-  cron.schedule("0 6 * * *", () => {
-    markExpiringSoonSubscriptions();
-  });
+  cron.schedule("0 6 * * *", () => { markExpiringSoonSubscriptions(); });
   console.log("[Subscription Cron] ✓ Scheduled: Mark expiring soon subscriptions (06:00 UTC)");
 
   // Send expiry reminders daily at 08:00 UTC
-  cron.schedule("0 8 * * *", () => {
-    sendExpiryReminders();
-  });
+  cron.schedule("0 8 * * *", () => { sendExpiryReminders(); });
   console.log("[Subscription Cron] ✓ Scheduled: Send expiry reminders (08:00 UTC)");
 
   // Clean up pending subscriptions daily at 12:00 UTC
-  cron.schedule("0 12 * * *", () => {
-    cleanupPendingSubscriptions();
-  });
+  cron.schedule("0 12 * * *", () => { cleanupPendingSubscriptions(); });
   console.log("[Subscription Cron] ✓ Scheduled: Cleanup pending subscriptions (12:00 UTC)");
 
-  // Send subscription promotion to unsubscribed business users every Monday at 10:00 UTC
-  cron.schedule("0 10 * * 1", () => {
-    subscriptionNotificationService.notifyUnsubscribedBusinessUsers();
-  });
-  console.log("[Subscription Cron] ✓ Scheduled: Notify unsubscribed business users (Every Monday 10:00 UTC)");
-
-  // Check for offers eligible for withdrawal (runs daily at 01:00 UTC)
-  cron.schedule("0 1 * * *", () => {
-    updateWithdrawalEligibility();
-  });
-  console.log("[Withdrawal Cron] ✓ Scheduled: Update withdrawal eligibility (Daily 01:00 UTC)");
+  // Notify unsubscribed business users every Monday at 10:00 UTC
+  cron.schedule("0 10 * * 1", () => { subscriptionNotificationService.notifyUnsubscribedBusinessUsers(); });
+  console.log("[Subscription Cron] ✓ Scheduled: Notify unsubscribed business users (Mon 10:00 UTC)");
 
   console.log("[Subscription Cron] All cron jobs initialized successfully");
 };
 
-/**
- * Manual trigger functions for testing
- */
-export const triggerExpiryCheck = async () => {
-  return await checkExpiredSubscriptions();
-};
+// ─── Manual trigger helpers (for testing/admin) ──────────────────────────────
 
-export const triggerExpiringSoonCheck = async () => {
-  return await markExpiringSoonSubscriptions();
-};
-
-export const triggerReminderCheck = async () => {
-  return await sendExpiryReminders();
-};
-
-export const triggerPendingCleanup = async () => {
-  return await cleanupPendingSubscriptions();
-};
-
-export const triggerWithdrawalEligibilityUpdate = async () => {
-  return await updateWithdrawalEligibility();
-};
+export const triggerExpiryCheck = async () => checkExpiredSubscriptions();
+export const triggerExpiringSoonCheck = async () => markExpiringSoonSubscriptions();
+export const triggerReminderCheck = async () => sendExpiryReminders();
+export const triggerPendingCleanup = async () => cleanupPendingSubscriptions();
+export const triggerWithdrawalEligibilityUpdate = async () => updateWithdrawalEligibility();
+export const triggerAutoRenewalProcessing = async () => processAutoRenewals();
+export const triggerRenewalFailureHandling = async () => handleRenewalFailures();

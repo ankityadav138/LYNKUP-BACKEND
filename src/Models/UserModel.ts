@@ -14,7 +14,25 @@ export interface UserData extends Document {
   appId?: string[];
   document?:string[];
   documentVerified?:Boolean;
-  userType?: "admin" | "user" | "business";
+  userType?: "admin" | "user" | "business" | "sub_admin";
+  // Sub-admin specific fields
+  subAdminRole?: string; // e.g., "Marketing", "Finance", "Support"
+  isActive?: boolean; // for activate/deactivate (sub-admins)
+  permissions?: {
+    dashboard?:   { view: boolean; edit: boolean };
+    offers?:      { view: boolean; edit: boolean };
+    users?:       { view: boolean; edit: boolean };
+    business?:    { view: boolean; edit: boolean };
+    requests?:    { view: boolean; edit: boolean };
+    feedback?:    { view: boolean; edit: boolean };
+    payouts?:     { view: boolean; edit: boolean };
+    withdrawals?: { view: boolean; edit: boolean };
+    invoices?:    { view: boolean; edit: boolean };
+    settings?:    { view: boolean; edit: boolean };
+    wallet?:      { view: boolean; edit: boolean };
+    earnings?:    { view: boolean; edit: boolean };
+    sub_admins?:  { view: boolean; edit: boolean };
+  };
   restro_type: "Luxury" | "ordinary";
   dietary_prefernces?: string[];
   allergy?:string;
@@ -152,8 +170,35 @@ const userSchema = new Schema<UserData>(
     },
     userType: {
       type: String,
-      enum: ["admin", "user", "business"],
+      enum: ["admin", "user", "business", "sub_admin"],
       required: false,
+    },
+    subAdminRole: {
+      type: String,
+      required: false,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    permissions: {
+      type: {
+        dashboard:   { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        offers:      { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        users:       { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        business:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        requests:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        feedback:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        payouts:     { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        withdrawals: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        invoices:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        settings:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        wallet:      { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        earnings:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        sub_admins:  { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+      },
+      required: false,
+      default: null,
     },
     dietary_prefernces: {
       type: [String],

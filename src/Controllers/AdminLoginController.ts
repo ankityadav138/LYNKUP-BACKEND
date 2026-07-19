@@ -127,12 +127,33 @@ export const adminLogin = async (
       resStatusDataToken(res, "success", "Business login successful", businessUser, token);
       return;
     }
-    resStatus401(res, "false", "No account found with this email for admin or business");
+    // Sub-admin login
+    const subAdminUser = await UserModel.findOne({ email: normalizedEmail, userType: "sub_admin" });
+    if (subAdminUser) {
+      if (subAdminUser.isDeleted) {
+        resStatus401(res, "false", "Account is deleted");
+        return;
+      }
+      if (!subAdminUser.isActive) {
+        resStatus401(res, "false", "Your account has been deactivated. Please contact the administrator.");
+        return;
+      }
+      const isPasswordValid = await bcrypt.compare(password, subAdminUser.password);
+      if (!isPasswordValid) {
+        resStatus401(res, "false", "Invalid password");
+        return;
+      }
+      const token = genToken(subAdminUser.id);
+      resStatusDataToken(res, "success", "Login successful", subAdminUser, token);
+      return;
+    }
+    resStatus401(res, "false", "No account found with this email");
   } catch (error) {
     console.error("Login error:", error);
     next(error);
   }
 };
+
 
 export const businessSignup = async (
   req: Request|any,

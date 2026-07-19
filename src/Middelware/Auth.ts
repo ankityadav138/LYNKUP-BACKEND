@@ -194,3 +194,59 @@ export const userMiddleware = async (
     resStatus(res, "false", "Something went wrong.");
   }
 };
+
+// Sub-Admin middleware — validates JWT, checks isActive, attaches full user with permissions
+export const subAdminMiddleware = async (
+  req: Request | any,
+  res: Response,
+  next: NextFunction
+): Promise<any> => {
+  try {
+    const authHeader = req.header("Authorization");
+    if (!authHeader) return resStatus(res, "false", "Token not found");
+
+    const token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
+
+    jwt.verify(token, process.env.JWT_SECRET || "JWT_SECRET", async (err: any, decoded: any) => {
+      if (err) {
+        if (err.name === "TokenExpiredError") {
+          return resStatus(res, "false", "Session expired. Please log in again.");
+        } else {
+          return resStatus(res, "false", "Invalid token.");
+        }
+      }
+
+      const userId = decoded.id;
+      if (typeof userId !== "string" || userId.length !== 24) {
+        return resStatus(res, "false", "Invalid user ID format.");
+      }
+
+      const user = await UserModel.findById(userId).select("-otp -__v -password");
+      if (!user) {
+        return resStatus(res, "false", "Sub-admin not found.");
+      }
+
+      if (user.userType !== "sub_admin") {
+        return resStatus(res, "false", "Access denied. Sub-admin only.");
+      }
+
+      if (!user.isActive) {
+        return resStatus(res, "false", "Your account has been deactivated. Please contact the administrator.");
+      }
+
+      if (user.passwordChangedAt) {
+        const passwordChangedAt = new Date(user.passwordChangedAt).getTime();
+        const tokenIssuedAt = decoded.iat * 1000;
+        if (tokenIssuedAt < passwordChangedAt) {
+          return resStatus(res, "false", "Session expired due to password change. Please log in again.");
+        }
+      }
+
+      req.user = user;
+      next();
+    });
+  } catch (error) {
+    resStatus(res, "false", "Something went wrong.");
+  }
+};
+

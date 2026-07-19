@@ -5,7 +5,7 @@ import { adminFeedback, createOffer, createOfferByBusiness, deleteOffer, deleteO
 import { AcceptedBookingByAdmin, canceledBookings, contentUpload, createBooking, getAllRequestForPanel, getRequestDetailForPanel, showBookingForRestro, showBookings , getAllBookings, contentStatus, creator_post_seen } from "../Controllers/BookingController";
 import { dashboard } from "../Controllers/dashboardController";
 import { createMealTiming, DeleteTimings, getAllTimings } from "../Controllers/FoodTimingController";
-import { adminMiddleware, businessMiddleware } from "../Middelware/Auth"
+import { adminMiddleware, businessMiddleware, subAdminMiddleware } from "../Middelware/Auth"
 import { requireActiveSubscription } from "../Middelware/SubscriptionMiddleware";
 import { requireWalletBalance } from "../Middelware/WalletMiddleware";
 import upload from "../Middelware/Multer";
@@ -26,7 +26,19 @@ import { recordEarning, getUserEarnings } from '../Controllers/EarningController
 import { getAdminBusinessWalletTransactions } from '../Controllers/WalletController';
 import { triggerWithdrawalEligibilityUpdate } from "../Cron/SubscriptionCron";
 import { getAllInvoices, getInvoiceById, getInvoicesByUser, exportInvoices } from "../Controllers/InvoiceController";
+import {
+  createSubAdmin,
+  getAllSubAdmins,
+  getSubAdminById,
+  updateSubAdmin,
+  deleteSubAdmin,
+  toggleSubAdminStatus,
+  getSubAdminProfile,
+  updateSubAdminProfile,
+  updateSubAdminPassword,
+} from "../Controllers/SubAdminController";
 export const adminRoutes = (app: Express): void => {
+
   // ⚠️ AWS S3 disabled - Image upload temporarily removed
   app.post("/admin/signup", /* upload.single('profileImage'), */ errCatch(adminSignup));
   app.post("/admin/login", errCatch(adminLogin));
@@ -200,5 +212,20 @@ export const adminRoutes = (app: Express): void => {
     }
   });
 
+  // ============================================================
+  //  SUB-ADMIN USER MANAGEMENT (Super Admin Only)
+  // ============================================================
+  app.post("/admin/sub-admins/create", adminMiddleware, errCatch(createSubAdmin));
+  app.get("/admin/sub-admins", adminMiddleware, errCatch(getAllSubAdmins));
+  app.get("/admin/sub-admins/:id", adminMiddleware, errCatch(getSubAdminById));
+  app.put("/admin/sub-admins/:id", adminMiddleware, errCatch(updateSubAdmin));
+  app.delete("/admin/sub-admins/:id", adminMiddleware, errCatch(deleteSubAdmin));
+  app.patch("/admin/sub-admins/:id/toggle-status", adminMiddleware, errCatch(toggleSubAdminStatus));
+
+  // Sub-Admin Self-Service (Sub-Admin Only)
+  app.get("/sub-admin/profile", subAdminMiddleware, errCatch(getSubAdminProfile));
+  app.put("/sub-admin/profile", subAdminMiddleware, errCatch(updateSubAdminProfile));
+  app.put("/sub-admin/change-password", subAdminMiddleware, errCatch(updateSubAdminPassword));
  
 };
+

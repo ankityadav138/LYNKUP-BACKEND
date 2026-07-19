@@ -10,6 +10,9 @@ import {
   getSubscriptionStatus,
   upgradeSubscription,
   downgradeSubscription,
+  toggleAutoRenewal,
+  getAutoRenewalStatus,
+  handleRenewalPaymentCallback,
 } from "../Controllers/SubscriptionController";
 import { authMiddleware, businessMiddleware } from "../Middelware/Auth";
 import { requireDocumentVerification } from "../Middelware/DocumentVerificationMiddleware";
@@ -32,4 +35,10 @@ router.get("/invoice/:subscriptionId", businessMiddleware, getInvoice);
 router.post("/upgrade", businessMiddleware, requireDocumentVerification, upgradeSubscription);
 router.post("/downgrade", businessMiddleware, requireDocumentVerification, downgradeSubscription);
 
+// Auto-renewal routes
+router.post("/auto-renewal/toggle", businessMiddleware, toggleAutoRenewal);
+router.get("/auto-renewal/status", businessMiddleware, getAutoRenewalStatus);
+router.post("/renewal/verify", businessMiddleware, handleRenewalPaymentCallback);
+
 export default router;
+

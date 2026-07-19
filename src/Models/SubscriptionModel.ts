@@ -34,6 +34,15 @@ export interface SubscriptionData extends Document {
   cancellationDate?: Date;
   cancellationRequestedAt?: Date;
   renewalDate?: Date; // for future auto-renewal feature
+  // Auto-renewal fields
+  autoRenewalEnabled?: boolean; // user opt-in for auto-renewal
+  autoRenewalOptedInAt?: Date; // when user opted in
+  nextBillingDate?: Date; // same as endDate, stored for indexing
+  lastRenewalAttemptAt?: Date; // when the renewal cron last tried
+  renewalFailureCount?: number; // consecutive renewal failures
+  renewalFailureReason?: string; // last failure message from Razorpay
+  paymentFailedAt?: Date; // timestamp of last payment failure
+  accessRestrictedAt?: Date; // when access was restricted due to non-payment
   metadata?: {
     userAgent?: string;
     ipAddress?: string;
@@ -200,6 +209,41 @@ const subscriptionSchema = new Schema<SubscriptionData>(
       type: Date,
       required: false,
     },
+    // Auto-renewal fields
+    autoRenewalEnabled: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    autoRenewalOptedInAt: {
+      type: Date,
+      required: false,
+    },
+    nextBillingDate: {
+      type: Date,
+      required: false,
+      index: true,
+    },
+    lastRenewalAttemptAt: {
+      type: Date,
+      required: false,
+    },
+    renewalFailureCount: {
+      type: Number,
+      default: 0,
+    },
+    renewalFailureReason: {
+      type: String,
+      required: false,
+    },
+    paymentFailedAt: {
+      type: Date,
+      required: false,
+    },
+    accessRestrictedAt: {
+      type: Date,
+      required: false,
+    },
     metadata: {
       type: {
         userAgent: { type: String, required: false },
@@ -218,6 +262,7 @@ const subscriptionSchema = new Schema<SubscriptionData>(
 subscriptionSchema.index({ userId: 1, status: 1 });
 subscriptionSchema.index({ userId: 1, createdAt: -1 });
 subscriptionSchema.index({ endDate: 1, status: 1 }); // For expiry checks
+subscriptionSchema.index({ autoRenewalEnabled: 1, nextBillingDate: 1, status: 1 }); // For renewal cron
 subscriptionSchema.index({ createdAt: -1 });
 
 const SubscriptionModel = model<SubscriptionData>(

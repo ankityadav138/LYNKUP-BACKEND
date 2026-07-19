@@ -21,7 +21,9 @@ import BookingModel from "../Models/Booking";
 export const InstagramMobileLogin = async (
   req: Request,
   res: Response
-): Promise<Response |void> => {
+): Promise<Response | void> => {
+
+  console.log("knjknjknkjnkj---")
   // const { access_token = "", user_id = "" } = req.query;
   const access_token = req.query.access_token as string | undefined;
   if (!access_token) {
@@ -32,181 +34,166 @@ export const InstagramMobileLogin = async (
         message: "Missing required parameters (access_token).",
       });
   }
-else{
-  const hasPermission = await checkInsightsPermission(access_token);
-  if (!hasPermission) {
-    resStatus(res, "false", "Access token does not have insights permission.");
-    return;
-  }
-  try {
-    // Exchange the code for an access token
-    // const tokenResponse:any = await axios.post(
-    //   'https://api.instagram.com/oauth/access_token',
-    //   qs.stringify({
-    //     client_id: '1015452860015692',
-    //     client_secret: '76a8b193787892f6bf2459abeb935d7b',
-    //     grant_type: 'authorization_code',
-    //     redirect_uri: 'https://socialmeapi.testenvapp.com/auth/instagram/callback',
-    //     code: code,
-    //   }),
-    //   { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-    // );
+  else {
+    // const hasPermission = await checkInsightsPermission(access_token);
+    // if (!hasPermission) {
+    //   resStatus(res, "false", "Access token does not have insights permission.");
+    //   return;
+    // }
+    try {
 
-    // console.log("Token response:", tokenResponse.data);
+      console.log("access_token--", access_token, "user_id", req.query.user_id)
+      const userProfileResponse: any = await axios.get(
+        `https://graph.instagram.com/v25.0/me`,
+        {
+          params: {
+            fields:
+              "followers_count,follows_count,media_count",
+            access_token,
+          },
+        }
+      );
+      console.log("userProfileResponse", userProfileResponse.data)
+      const userProfile = userProfileResponse.data;
+      if (!userProfile) {
+        resStatus(res, 'false', "user not having instagram ")
+      } else {
+        userProfile.instagramlink = `https://www.instagram.com/${userProfile.username}`;
+        userProfile.username = userProfile.username;
+        const targetUsername = userProfile.username;
 
-    // const access_token = access_token;
-    // const user_id = user_id;
-    // Fetch user profile information
-    const userProfileResponse: any = await axios.get(
-      "https://graph.instagram.com/me",
-      {
-        params: {
-          fields: "id,username,account_type,profile_picture_url,media_count,follows_count,followers_count",
-          access_token,
-        },
-      }
-    );
-    const userProfile = userProfileResponse.data;
-    if(!userProfile){
-     resStatus(res,'false',"user not having instagram ")
-    }else{
-     userProfile.instagramlink = `https://www.instagram.com/${userProfile.username}`;
-     userProfile.username = userProfile.username;
-     const targetUsername = userProfile.username;
-    
-    const userInsights = await fetchUserInsights(userProfile.id, access_token,res);
-    const insightsData = (userInsights as { data?: any[] })?.data || [];
+        const userInsights = await fetchUserInsights(userProfile.id, access_token, res);
+        const insightsData = (userInsights as { data?: any[] })?.data || [];
 
         if (!userInsights) {
-         return res.status(403).json({
-           success: false,
-           message: "You do not have permission to access insights data. Please ensure your account is a business or creator account with required permissions.",
-         });
+          return res.status(403).json({
+            success: false,
+            message: "You do not have permission to access insights data. Please ensure your account is a business or creator account with required permissions.",
+          });
         }
-     // Function to sum last 30 days' values for each metric
-     const sumMetric = (metricName: string): number => {
-       return insightsData.find((m) => m.name === metricName)?.total_value?.value || 0;
-     };
-    //  function formatNumber(x: number): string {
-    //   return x.toLocaleString('en-US'); 
-    // }
-    
-     let reach = sumMetric("reach");
-     let accountsEngaged = sumMetric("accounts_engaged");
-     let views = sumMetric("views");
-     let profileViews = sumMetric("profile_views");
-     let contentViews = sumMetric("content_views");
-    let engagementRate = reach > 0 ? (accountsEngaged / reach) : 0;
-    engagementRate = parseFloat(engagementRate.toFixed(2));
-    
-   let instagramInsights = {
-       reach,
-       accounts_engaged: accountsEngaged,
-       views,
-       profile_views: profileViews,
-       content_views: contentViews,
-       engagementRate,
-     };
-     const allFollowers = await FollowerModel.find({});
-     const staticFollowers = allFollowers.map((f) => f.staticFollowers || 0);
- 
-     const followersCount = userProfile?.followers_count || 0;
-     const minRequiredFollowers = Math.max(...staticFollowers, 0);
-     const followersWhoEngaged =  Math.round(((instagramInsights?.accounts_engaged ||0) * followersCount) / (instagramInsights?.reach ||0));
-     const nonFollowersWhoEngaged = Math.max((instagramInsights?.accounts_engaged ||0)- followersWhoEngaged, 0);
- 
-     let nonFollowers = Math.max(((instagramInsights?.reach || 0) - (followersCount || 0)/100), 0);
-     // Check if the user's followers meet the minimum required followers
-if (followersCount < minRequiredFollowers) {
-  const remainingFollowers = minRequiredFollowers - followersCount;
-  res.status(403).json({
-    success: false,
-    message: `You need ${remainingFollowers} more followers to log in.`,
-    required_followers: minRequiredFollowers,
-    current_followers: followersCount,
-    remaining_followers: remainingFollowers,
-  });
-  return;
-}
+        // Function to sum last 30 days' values for each metric
+        const sumMetric = (metricName: string): number => {
+          return insightsData.find((m) => m.name === metricName)?.total_value?.value || 0;
+        };
 
-    let user = await UserModel.findOne({ instagramId: userProfile.id });
-    if (user) {
-      if (user.blocked || user.isDeleted) {
-        return res.status(403).json({
-          success: false,
-          message: "Your account has been blocked or deleted. Please contact support.",
-        });
-      }else{
-      user.instagram = userProfile;
-      // user.email = `no-email-${userProfile.id}@instagram.com`;
-      user.profileImage = userProfile.profile_picture_url;
-      user.accessToken = access_token;
-      user.profile_status= "verified";
-      user.userType = "user";
-      user.insights = instagramInsights;
-      user.businessDiscovery={
-       followers_count :userProfile?.followers_count|0,
-       media_count : userProfile?.media_count|0,
-       nonfollowers:nonFollowers|0,
-        followersWhoEngaged:followersWhoEngaged|0,
-        nonFollowersWhoEngaged:nonFollowersWhoEngaged|0,
-      } 
-      await user.save();
+
+        let reach = sumMetric("reach");
+        let accountsEngaged = sumMetric("accounts_engaged");
+        let views = sumMetric("views");
+        let profileViews = sumMetric("profile_views");
+        let contentViews = sumMetric("content_views");
+        let engagementRate = reach > 0 ? (accountsEngaged / reach) : 0;
+        engagementRate = parseFloat(engagementRate.toFixed(2));
+
+        let instagramInsights = {
+          reach,
+          accounts_engaged: accountsEngaged,
+          views,
+          profile_views: profileViews,
+          content_views: contentViews,
+          engagementRate,
+        };
+        const allFollowers = await FollowerModel.find({});
+        const staticFollowers = allFollowers.map((f) => f.staticFollowers || 0);
+
+        const followersCount = userProfile?.followers_count || 0;
+        //  const minRequiredFollowers = Math.max(...staticFollowers, 0);
+        const minRequiredFollowers = 0;
+        const followersWhoEngaged = Math.round(((instagramInsights?.accounts_engaged || 0) * followersCount) / (instagramInsights?.reach || 0));
+        const nonFollowersWhoEngaged = Math.max((instagramInsights?.accounts_engaged || 0) - followersWhoEngaged, 0);
+
+        let nonFollowers = Math.max(((instagramInsights?.reach || 0) - (followersCount || 0) / 100), 0);
+        // Check if the user's followers meet the minimum required followers
+        // if (followersCount === minRequiredFollowers) {
+        //   const remainingFollowers = minRequiredFollowers - followersCount;
+        //   res.status(403).json({
+        //     success: false,
+        //     message: `You need ${remainingFollowers} more followers to log in.`,
+        //     required_followers: minRequiredFollowers,
+        //     current_followers: followersCount,
+        //     remaining_followers: remainingFollowers,
+        //   });
+        //   return;
+        // }
+
+        let user = await UserModel.findOne({ instagramId: userProfile.id });
+        if (user) {
+          if (user.blocked || user.isDeleted) {
+            return res.status(403).json({
+              success: false,
+              message: "Your account has been blocked or deleted. Please contact support.",
+            });
+          } else {
+            user.instagram = userProfile;
+            // user.email = `no-email-${userProfile.id}@instagram.com`;
+            user.profileImage = userProfile.profile_picture_url;
+            user.accessToken = access_token;
+            user.profile_status = "verified";
+            user.userType = "user";
+            user.insights = instagramInsights;
+            user.businessDiscovery = {
+              followers_count: userProfile?.followers_count | 0,
+              media_count: userProfile?.media_count | 0,
+              nonfollowers: nonFollowers | 0,
+              followersWhoEngaged: followersWhoEngaged | 0,
+              nonFollowersWhoEngaged: nonFollowersWhoEngaged | 0,
+            }
+            await user.save();
+          }
+        }
+        else {
+          user = await UserModel.create({
+            email: `no-email-${userProfile.id}@instagram.com`,
+            instagramId: userProfile.id,
+            profile_status: "verified",
+            instagram: userProfile,
+            profileImage: userProfile.profile_picture_url,
+            accessToken: access_token,
+            userType: "user",
+            insights: instagramInsights,
+            businessDiscovery: {
+              followers_count: userProfile?.followers_count,
+              media_count: userProfile?.media_count,
+              nonfollowers: nonFollowers | 0,
+              followersWhoEngaged: followersWhoEngaged | 0,
+              nonFollowersWhoEngaged: nonFollowersWhoEngaged | 0,
+            }
+          });
+        }
+        // await user.save();
+        const token = genToken(user.id);
+        resStatusDataToken(
+          res,
+          "success",
+          "Instagram login successful",
+          user,
+          token
+        );
       }
-    } 
-    else {
-      user = await UserModel.create({
-        email:`no-email-${userProfile.id}@instagram.com`,
-        instagramId: userProfile.id,
-        profile_status :"verified",
-       instagram: userProfile,
-        profileImage: userProfile.profile_picture_url,
-        accessToken: access_token,
-        userType : "user",
-        insights: instagramInsights,
-        businessDiscovery:{
-          followers_count :userProfile?.followers_count,
-          media_count : userProfile?.media_count,
-          nonfollowers:nonFollowers|0,
-        followersWhoEngaged:followersWhoEngaged|0,
-        nonFollowersWhoEngaged:nonFollowersWhoEngaged|0,
-                } 
-      });
-    }
-    // await user.save();
-    const token = genToken(user.id);
-    resStatusDataToken(
-      res,
-      "success",
-      "Instagram login successful",
-      user,
-      token
-    );
-    }
-  } catch (error: any) {
-    console.error(
-      "Instagram Login Error:",
-      error.response ? error.response.data : error.message
-    );
-    if (error.response && error.response.status === 400) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Invalid code or authorization failure",
-          error: error.response.data,
-        });
-    } else {
-      res
-        .status(500)
-        .json({
-          success: false,
-          message: "Instagram login failed",
-          error: error.message,
-        });
+    } catch (error: any) {
+      console.error(
+        "Instagram Login Error:",
+        error.response ? error.response.data : error.message
+      );
+      if (error.response && error.response.status === 400) {
+        res
+          .status(400)
+          .json({
+            success: false,
+            message: "Invalid code or authorization failure",
+            error: error.response.data,
+          });
+      } else {
+        res
+          .status(500)
+          .json({
+            success: false,
+            message: "Instagram login failed",
+            error: error.message,
+          });
+      }
     }
   }
-}
 };
 //  export const InstagramMobileLogin = async (req: Request, res: Response): Promise<Response | void> => {
 //   const shortLivedToken = req.query.access_token as string | undefined;
@@ -385,8 +372,8 @@ export const fetchUserInsights = async (
   } catch (error: any) {
     console.error("Error fetching user insights:", error.response?.data || error.message);
     if (
-      error.response?.status === 400 
-            //   && error.response?.data?.error?.message?.includes("permissions")
+      error.response?.status === 400
+      //   && error.response?.data?.error?.message?.includes("permissions")
     ) {
       resStatus(res, "false", "You have no insights permission");
     } else {
@@ -446,6 +433,9 @@ export const influencerAccount = async (
     email_notification,
     upi_Id,
     email,
+    state,
+    city,
+    addressLine,
   } = req.body;
   if (!firstName || !lastName || !phone) {
     resStatus(res, "false", "First name, last name, and phone are required.");
@@ -460,7 +450,7 @@ export const influencerAccount = async (
   const staticFollowers = Number(followerData?.staticFollowers ?? 0);
   const followersCount = Number(user?.businessDiscovery?.followers_count ?? 0);
   const profile_status = "verified";
-    // followersCount > staticFollowers ? "verified" : "under_review";
+  // followersCount > staticFollowers ? "verified" : "under_review";
   // const updatedUser = await UserModel.findByIdAndUpdate(userId, {
   //   $set: {
   //     firstName,
@@ -489,13 +479,16 @@ export const influencerAccount = async (
         profile_status: profile_status,
         allergy,
         upi_Id,
-        email:email.toLowerCase(),
+        email: email.toLowerCase(),
+        state,
+        city,
+        addressLine,
         profile_step: false,
       },
     },
-    { new: true } 
+    { new: true }
   );
-  
+
   if (!updatedUser) {
     resStatus(res, "false", "User not found.");
   }
@@ -639,7 +632,7 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
   );
   resStatusData(res, "success", "User marked as deleted", updatedUser);
 };
-export const permanentlyDeleteUser = async (req: Request |any, res: Response): Promise<void> => {
+export const permanentlyDeleteUser = async (req: Request | any, res: Response): Promise<void> => {
   try {
     const userId = req.user._id;
     if (!userId) {

@@ -77,18 +77,23 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 // Instagram OAuth callback
-app.get("/auth/instagram/callback", async (req, res) => {
-  const { code } = req.query;
+// app.get("/auth/instagram/callback", async (req: Request, res: Response) => {
+//   const { code } = req.query;
 
-  try {
-    res.redirect(
-      `https://socialmeapi.testenvapp.com/auth/instagram/callback1?code=${code}`
-    );
-  } catch (error) {
-    console.error("Instagram callback error:", error);
-    res.redirect("lynkup://auth?error=instagram_failed");
-  }
-});
+//   try {
+//     res.redirect(
+//       `https://socialmeapi.testenvapp.com/auth/instagram/callback1?code=${code}`
+//     );
+//   } catch (error) {
+//     console.error("Instagram callback error:", error);
+//     res.redirect("lynkup://auth?error=instagram_failed");
+//   }
+// });
+
+// app.use(
+//   "/auth/instagram",
+//   require("./routes/instagramcallback.routes")
+// );
 
 const port = process.env.PORT || 8089;
 

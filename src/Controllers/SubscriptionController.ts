@@ -1518,3 +1518,362 @@ export const getSubscriptionStatus = async (
     });
   }
 };
+
+/**
+ * POST /api/subscription/auto-renewal/toggle
+ * Enable or disable auto-renewal for the active subscription
+ * Protected endpoint (auth required)
+ */
+export const toggleAutoRenewal = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id || (req as any).user?._id;
+    const { enabled } = req.body;
+
+    if (!userId) {
+      resStatusData(res, "error", "User not authenticated", {});
+      return;
+    }
+
+    if (typeof enabled !== "boolean") {
+      resStatusData(res, "error", "enabled (boolean) is required", {});
+      return;
+    }
+
+    // Find active subscription
+    const subscription = await SubscriptionModel.findOne({
+      userId,
+      status: { $in: ["active", "expiring_soon", "grace_period"] },
+    });
+
+    if (!subscription) {
+      resStatusData(res, "error", "No active subscription found", {});
+      return;
+    }
+
+    // Update auto-renewal preference
+    subscription.autoRenewalEnabled = enabled;
+    if (enabled) {
+      subscription.autoRenewalOptedInAt = new Date();
+      // Set nextBillingDate to endDate (so cron can pick it up)
+      subscription.nextBillingDate = subscription.endDate;
+    }
+    await subscription.save();
+
+    // Send push notification about the preference change
+    try {
+      const user = await User.findById(userId);
+      if (user && user.playerId && user.playerId.length > 0) {
+        const { sendNotification } = await import("./NotificationController");
+        await sendNotification(
+          user.playerId,
+          enabled ? "✅ Auto-Renewal Enabled" : "🔕 Auto-Renewal Disabled",
+          enabled
+            ? `Your subscription will automatically renew on ${subscription.endDate.toDateString()}.`
+            : "Auto-renewal has been disabled. Remember to renew manually before your subscription expires.",
+          "",
+          enabled ? "auto_renewal_enabled" : "auto_renewal_disabled"
+        );
+      }
+    } catch (notifErr) {
+      console.error("[AutoRenewal] Notification error:", notifErr);
+    }
+
+    resStatusData(res, "success", `Auto-renewal ${enabled ? "enabled" : "disabled"} successfully`, {
+      autoRenewalEnabled: enabled,
+      nextBillingDate: enabled ? subscription.endDate : null,
+      message: enabled
+        ? `Auto-renewal is ON. You will be notified before your next billing date.`
+        : "Auto-renewal is OFF. Your subscription will not renew automatically.",
+    });
+  } catch (error: any) {
+    console.error("Toggle auto-renewal error:", error);
+    resStatusData(res, "error", "Failed to update auto-renewal preference", {
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * GET /api/subscription/auto-renewal/status
+ * Get auto-renewal status and next billing details
+ * Protected endpoint (auth required)
+ */
+export const getAutoRenewalStatus = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id || (req as any).user?._id;
+
+    if (!userId) {
+      resStatusData(res, "error", "User not authenticated", {});
+      return;
+    }
+
+    const subscription = await SubscriptionModel.findOne({
+      userId,
+      status: { $in: ["active", "expiring_soon", "grace_period"] },
+    }).populate("planId");
+
+    if (!subscription) {
+      resStatusData(res, "success", "No active subscription", {
+        autoRenewalEnabled: false,
+        hasActiveSubscription: false,
+      });
+      return;
+    }
+
+    const daysUntilRenewal = subscription.endDate
+      ? Math.max(0, Math.ceil((subscription.endDate.getTime() - Date.now()) / DAY_IN_MS))
+      : 0;
+
+    resStatusData(res, "success", "Auto-renewal status retrieved", {
+      autoRenewalEnabled: subscription.autoRenewalEnabled || false,
+      autoRenewalOptedInAt: subscription.autoRenewalOptedInAt || null,
+      nextBillingDate: subscription.endDate,
+      daysUntilRenewal,
+      amount: subscription.amount,
+      currency: subscription.currency || "INR",
+      tier: subscription.tier,
+      duration: subscription.duration,
+      planName: (subscription.planId as any)?.name || "Business Plan",
+      // Failure tracking
+      renewalFailureCount: subscription.renewalFailureCount || 0,
+      renewalFailureReason: subscription.renewalFailureReason || null,
+      paymentFailedAt: subscription.paymentFailedAt || null,
+      accessRestrictedAt: subscription.accessRestrictedAt || null,
+      isAccessRestricted: !!subscription.accessRestrictedAt,
+    });
+  } catch (error: any) {
+    console.error("Get auto-renewal status error:", error);
+    resStatusData(res, "error", "Failed to get auto-renewal status", {
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/subscription/renewal/verify
+ * Verify payment for auto-renewal and activate the renewed subscription
+ * Same flow as verifySubscription but creates a new record with changeType "renewal"
+ * Protected endpoint (auth required)
+ */
+export const handleRenewalPaymentCallback = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id || (req as any).user?._id;
+    const {
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature,
+      subscriptionId,
+    } = req.body;
+
+    if (!userId) {
+      resStatusData(res, "error", "User not authenticated", {});
+      return;
+    }
+
+    if (!razorpay_payment_id || !razorpay_order_id || !subscriptionId) {
+      resStatusData(res, "error", "Missing payment details", {});
+      return;
+    }
+
+    const isTestMode = !razorpay_signature || razorpay_signature === "undefined";
+
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      resStatusData(res, "error", "Razorpay configuration error", {});
+      return;
+    }
+
+    // Verify signature (production) or API (test mode)
+    if (!isTestMode && razorpay_signature) {
+      const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+      const expectedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+        .update(body)
+        .digest("hex");
+
+      if (expectedSignature !== razorpay_signature) {
+        resStatusData(res, "error", "Invalid payment signature", {});
+        return;
+      }
+    } else if (isTestMode) {
+      const paymentResponse = await razorpay.payments.fetch(razorpay_payment_id);
+      if (paymentResponse.status !== "captured") {
+        resStatusData(res, "error", "Payment not successfully captured", {});
+        return;
+      }
+      if (paymentResponse.order_id !== razorpay_order_id) {
+        resStatusData(res, "error", "Order ID mismatch", {});
+        return;
+      }
+    }
+
+    // Find the pending renewal subscription record
+    const pendingRenewal = await SubscriptionModel.findById(subscriptionId);
+    if (!pendingRenewal) {
+      resStatusData(res, "error", "Renewal subscription record not found", {});
+      return;
+    }
+
+    if (pendingRenewal.userId.toString() !== userId) {
+      resStatusData(res, "error", "Subscription does not belong to this user", {});
+      return;
+    }
+
+    if (pendingRenewal.razorpayOrderId !== razorpay_order_id) {
+      resStatusData(res, "error", "Order ID mismatch", {});
+      return;
+    }
+
+    // Activate the renewal
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setMonth(endDate.getMonth() + pendingRenewal.duration);
+
+    const graceEndDate = new Date(endDate);
+    graceEndDate.setDate(graceEndDate.getDate() + GRACE_PERIOD_DAYS);
+
+    pendingRenewal.razorpayPaymentId = razorpay_payment_id;
+    pendingRenewal.razorpaySignature = razorpay_signature;
+    pendingRenewal.paymentStatus = "completed";
+    pendingRenewal.status = "active";
+    pendingRenewal.startDate = startDate;
+    pendingRenewal.endDate = endDate;
+    pendingRenewal.graceEndDate = graceEndDate;
+    pendingRenewal.isInGracePeriod = false;
+    pendingRenewal.nextBillingDate = endDate;
+    // Reset failure tracking
+    pendingRenewal.renewalFailureCount = 0;
+    pendingRenewal.renewalFailureReason = undefined;
+    pendingRenewal.paymentFailedAt = undefined;
+    pendingRenewal.accessRestrictedAt = undefined;
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      await pendingRenewal.save({ session });
+
+      // Expire the old subscription(s) for this user
+      await SubscriptionModel.updateMany(
+        {
+          userId,
+          _id: { $ne: pendingRenewal._id },
+          status: { $in: ["active", "expiring_soon", "grace_period"] },
+        },
+        {
+          $set: {
+            status: "expired",
+            cancellationReason: "Replaced by renewal subscription",
+            cancellationDate: new Date(),
+          },
+        },
+        { session }
+      );
+
+      await User.findByIdAndUpdate(
+        userId,
+        {
+          currentSubscriptionId: pendingRenewal._id,
+          hasActiveSubscription: true,
+          subscriptionExpiryDate: endDate,
+        },
+        { session, new: true }
+      );
+
+      await session.commitTransaction();
+    } catch (txError) {
+      await session.abortTransaction();
+      console.error("[Renewal] Transaction failed:", txError);
+      throw txError;
+    } finally {
+      session.endSession();
+    }
+
+    // Send renewal success notification (non-blocking)
+    try {
+      const user = await User.findById(userId);
+      if (user && user.playerId && user.playerId.length > 0) {
+        const { sendNotification } = await import("./NotificationController");
+        await sendNotification(
+          user.playerId,
+          "🎉 Subscription Renewed!",
+          `Your ${pendingRenewal.tier.toUpperCase()} subscription has been renewed successfully. Valid until ${endDate.toDateString()}.`,
+          "",
+          "subscription_renewed"
+        );
+      }
+    } catch (notifErr) {
+      console.error("[Renewal] Notification error:", notifErr);
+    }
+
+    // Create invoice for renewal (non-blocking)
+    try {
+      const user = await User.findById(userId);
+      const plan = await SubscriptionPlanModel.findById(pendingRenewal.planId);
+      if (user) {
+        const planName = plan?.name || "Business Plan";
+        const invoice = await InvoiceModel.create({
+          userId,
+          subscriptionId: pendingRenewal._id,
+          type: "subscription",
+          amount: pendingRenewal.amount,
+          currency: pendingRenewal.currency || "INR",
+          razorpayPaymentId: razorpay_payment_id,
+          razorpayOrderId: razorpay_order_id,
+          planName,
+          billingEmail: user.email || "noreply@lynkup.com",
+          invoiceDate: new Date(),
+        });
+
+        const invoiceDetails = {
+          invoiceId: invoice.invoiceNumber,
+          userName: `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() || "User",
+          userEmail: user.email || "noreply@lynkup.com",
+          subscriptionId: (pendingRenewal._id as any).toString(),
+          planName,
+          tier: pendingRenewal.tier,
+          amount: pendingRenewal.amount,
+          currency: pendingRenewal.currency || "INR",
+          startDate: pendingRenewal.startDate,
+          endDate: pendingRenewal.endDate,
+          duration: pendingRenewal.duration,
+          discount: 0,
+          features: plan?.features || [],
+          company: "LYNKUP",
+        };
+
+        Promise.all([
+          invoiceService.sendInvoiceToUser(invoiceDetails),
+          invoiceService.sendAdminNotification(invoiceDetails),
+        ]).catch(err => console.error("[Renewal] Invoice email error:", err));
+      }
+    } catch (invoiceErr) {
+      console.error("[Renewal] Invoice creation error:", invoiceErr);
+    }
+
+    resStatusData(res, "success", "Subscription renewed successfully", {
+      subscription: {
+        _id: pendingRenewal._id,
+        status: pendingRenewal.status,
+        tier: pendingRenewal.tier,
+        startDate: pendingRenewal.startDate,
+        endDate: pendingRenewal.endDate,
+        autoRenewalEnabled: pendingRenewal.autoRenewalEnabled,
+      },
+      message: "Your subscription has been renewed. Enjoy uninterrupted access!",
+    });
+  } catch (error: any) {
+    console.error("Renewal payment callback error:", error);
+    resStatusData(res, "error", "Failed to verify renewal payment", {
+      error: error.message,
+    });
+  }
+};
