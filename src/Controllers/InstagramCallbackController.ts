@@ -45,9 +45,10 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
         console.log("accesstokenn==>", accessToken);
         const userId: string = tokenResponse.data.user_id;
 
-        res.redirect(
-            `com.lynkupapplication.android://instagram-auth?access_token=${accessToken}&user_id=${userId}`
-        );
+        // res.redirect(
+        //     `com.lynkupapplication.android://instagram-auth?access_token=${accessToken}&user_id=${userId}`
+        // );
+        res.redirect("com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}")
 
     } catch (err: any) {
 
