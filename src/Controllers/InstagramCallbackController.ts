@@ -5,7 +5,7 @@ const APP_ID = process.env.INSTAGRAM_APP_ID || "1333143208929187";
 const APP_SECRET = process.env.INSTAGRAM_APP_SECRET || "01c51f9f1d28cf16d8798f94ceafc653";
 
 const REDIRECT_URI =
-    "https://api.thesocialme.in/auth/instagram/callback/auth/instagram/callback";
+    "https://lynkupapi.lynkup.co.in/auth/instagram/callback";
 
 interface InstagramTokenResponse {
     access_token: string;
