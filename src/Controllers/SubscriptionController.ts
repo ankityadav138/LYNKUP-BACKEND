@@ -1219,7 +1219,10 @@ export const upgradeSubscription = async (
         newPlanPrice: newPrice,
         remainingCredit,
         amountToPay,
-        breakdown: `₹${newPrice} - ₹${remainingCredit} credit = ₹${amountToPay}`,
+        gstRate: 18,
+        gstAmount: Number((amountToPay * 0.18).toFixed(2)),
+        totalWithGst: Number((amountToPay * 1.18).toFixed(2)),
+        breakdown: `₹${newPrice} - ₹${remainingCredit} credit = ₹${amountToPay} + 18% GST = ₹${Number((amountToPay * 1.18).toFixed(2))}`,
       },
       currentPlan: {
         tier: currentSubscription.tier,
