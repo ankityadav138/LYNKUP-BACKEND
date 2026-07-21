@@ -25,26 +25,26 @@ import "./src/Models/Wallet";
 import "./src/Models/WalletTransaction";
 
 // ✅ CORS - Allow all origins (DEV FRIENDLY)
-// app.use(
-//   cors({
-//     origin: true,        // allows all origins dynamically
-//     credentials: true, 
-//     Headers: true   // allow cookies/auth headers
-//   })
-// );
-
 app.use(
   cors({
-    origin: [
-      "https://jovial-sunflower-ad586a.netlify.app",
-      "https://mypaaltu.com",
-      "https://www.mypaaltu.com",
-      "http://localhost:3000",
-      "http://localhost:5173",
-    ],
+    origin: true,        // allows all origins dynamically
     credentials: true,
+    // Headers: true   // allow cookies/auth headers
   })
 );
+
+// app.use(
+//   cors({
+//     origin: [
+//       "https://jovial-sunflower-ad586a.netlify.app",
+//       "https://mypaaltu.com",
+//       "https://www.mypaaltu.com",
+//       "http://localhost:3000",
+//       "http://localhost:5173",
+//     ],
+//     credentials: true,
+//   })
+// );
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
