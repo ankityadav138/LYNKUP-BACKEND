@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import axios from "axios";
 
-const APP_ID = process.env.INSTAGRAM_APP_ID || "1333143208929187";
-const APP_SECRET = process.env.INSTAGRAM_APP_SECRET || "01c51f9f1d28cf16d8798f94ceafc653";
+const APP_ID = process.env.INSTAGRAM_APP_ID || "1015452860015692";
+const APP_SECRET = process.env.INSTAGRAM_APP_SECRET || "76a8b193787892f6bf2459abeb935d7b";
 
 const REDIRECT_URI =
     "https://dev.thesocialme.in/auth/instagram/callback";
