@@ -73,7 +73,7 @@ app.use(errorHandler);
 
 // Test route
 app.get("/", (req: Request, res: Response) => {
-  res.send("TEST BACKEND IS WORKING");
+  res.send("New TEST BACKEND IS WORKING");
 });
 
 // Instagram OAuth callback
