@@ -131,8 +131,9 @@ const s3Storage = multerS3({
     const newFilename = `${folder}${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`;
     cb(null, newFilename);
   },
-  acl: "public-read",
   contentType: multerS3.AUTO_CONTENT_TYPE,
+  // ⚠️ acl removed: bucket has "Bucket owner enforced" Object Ownership (ACLs disabled).
+  // Public access is controlled via an S3 Bucket Policy instead.
 });
 
 // ✅ Multer Configuration with File Size Limit
