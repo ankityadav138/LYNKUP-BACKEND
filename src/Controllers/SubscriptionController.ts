@@ -675,17 +675,33 @@ export const getSubscriptionDetails = async (
       return;
     }
 
-    // Check if subscription has expired
-    if (subscription.endDate < new Date()) {
+    // Guard: if endDate is missing, treat subscription as expired
+    if (!subscription.endDate) {
       subscription.status = "expired";
       await subscription.save();
-
-      // Update user
       await User.findByIdAndUpdate(userId, {
         hasActiveSubscription: false,
         currentSubscriptionId: null,
       });
+      resStatusData(res, "success", "Subscription expired", {
+        subscription: null,
+        message: "User subscription has expired",
+      });
+      return;
+    }
 
+    // Safely coerce to Date objects regardless of how MongoDB stored them
+    const endDateObj = new Date(subscription.endDate as any);
+    const now = new Date();
+
+    // Check if subscription has expired
+    if (endDateObj < now) {
+      subscription.status = "expired";
+      await subscription.save();
+      await User.findByIdAndUpdate(userId, {
+        hasActiveSubscription: false,
+        currentSubscriptionId: null,
+      });
       resStatusData(res, "success", "Subscription expired", {
         subscription: null,
         message: "User subscription has expired",
@@ -694,14 +710,19 @@ export const getSubscriptionDetails = async (
     }
 
     // Calculate days remaining
-    const daysRemaining = Math.ceil(
-      (subscription.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    const daysRemaining = Math.max(
+      0,
+      Math.ceil((endDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     );
 
     // Calculate grace days remaining if applicable
-    const graceDaysRemaining = subscription.graceEndDate 
-      ? Math.max(0, Math.ceil((subscription.graceEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    const graceEndDateObj = subscription.graceEndDate
+      ? new Date(subscription.graceEndDate as any)
+      : null;
+    const graceDaysRemaining = graceEndDateObj && !isNaN(graceEndDateObj.getTime())
+      ? Math.max(0, Math.ceil((graceEndDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
       : 0;
+
 
     resStatusData(res, "success", "Subscription details retrieved", {
       subscription: {
@@ -1512,6 +1533,7 @@ export const getSubscriptionStatus = async (
         requiresRenewal: daysRemaining <= 7 || isInGracePeriod,
         amount: subscription.amount,
         planName: (subscription.planId as any)?.name || "Business Plan",
+        features: (subscription.planId as any)?.features || [],
       },
     });
   } catch (error: any) {
