@@ -16,8 +16,8 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
 
     try {
 
-        const { code } = req.query;
-        console.log("codessss", code);
+        const { code, state, } = req.query;
+        console.log("state--", state);
 
         if (!code) {
             res.status(400).json({ error: "Authorization code is missing" });
@@ -45,10 +45,15 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
         console.log("accesstokenn==>", accessToken);
         const userId: string = tokenResponse.data.user_id;
 
-        // res.redirect(
-        //     `com.lynkupapplication.android://instagram-auth?access_token=${accessToken}&user_id=${userId}`
-        // );
-        res.redirect(`com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
+        if (state === 'android') {
+            res.redirect(
+                `com.lynkupapplication.android://instagram-auth?access_token=${accessToken}&user_id=${userId}`
+            );
+        } else {
+            res.redirect(`com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
+        }
+
+        // res.redirect(`com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
 
     } catch (err: any) {
 
