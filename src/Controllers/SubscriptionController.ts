@@ -9,6 +9,7 @@ import InvoiceModel from "../Models/InvoiceModel";
 import { resStatusData } from "../Responses/Response";
 import { invoiceService } from "../Services/InvoiceService";
 import { notifySubscriptionUpgrade, subscriptionNotificationService } from "../Services/SubscriptionNotificationService";
+import { findApplicableCoupon, markCouponUsed } from "./CouponController";
 
 // Grace period in days
 const GRACE_PERIOD_DAYS = 3;
@@ -305,9 +306,27 @@ export const createSubscriptionOrder = async (
       return;
     }
 
+    // ── Coupon auto-lookup ──────────────────────────────────────────────────
+    const couponCode = req.body.couponCode || null;
+    const applicableCoupon = await findApplicableCoupon(String(userId), couponCode);
+
+    let finalPrice = selectedPrice;
+    let discountAmount = 0;
+    let discountPercent = 0;
+    let couponId: any = null;
+    let appliedCouponCode: string | null = null;
+
+    if (applicableCoupon) {
+      discountPercent = applicableCoupon.discountPercent;
+      discountAmount = Math.round((selectedPrice * discountPercent) / 100);
+      finalPrice = selectedPrice - discountAmount;
+      couponId = applicableCoupon._id;
+      appliedCouponCode = applicableCoupon.code;
+    }
+
     // Create Razorpay order for a new subscription with 18% GST
     const razorpayOrder = await razorpay.orders.create({
-      amount: Math.round(selectedPrice * 1.18 * 100),
+      amount: Math.round(finalPrice * 1.18 * 100),
       currency: "INR",
       receipt: `SUB-${Date.now()}`.slice(0, 40), // Truncate to 40 chars
       notes: {
@@ -330,10 +349,17 @@ export const createSubscriptionOrder = async (
       subscription.planId = planId as any;
       subscription.tier = tier;
       subscription.duration = selectedTier.duration;
-      subscription.amount = selectedTier.price;
+      subscription.amount = finalPrice;
       subscription.razorpayOrderId = razorpayOrder.id;
       subscription.razorpayPaymentId = undefined;
       subscription.razorpaySignature = undefined;
+      if (couponId) {
+        subscription.couponId = couponId;
+        subscription.couponCode = appliedCouponCode!;
+        subscription.discountPercent = discountPercent;
+        subscription.discountAmount = discountAmount;
+        subscription.originalAmount = selectedPrice;
+      }
       await subscription.save();
     } else {
       subscription = await SubscriptionModel.create({
@@ -343,11 +369,18 @@ export const createSubscriptionOrder = async (
         duration: selectedTier.duration,
         status: "pending",
         paymentStatus: "pending",
-        amount: selectedPrice,
+        amount: finalPrice,
         baseAmount: selectedPrice,
         changeType: "new",
         currency: "INR",
         razorpayOrderId: razorpayOrder.id,
+        ...(couponId ? {
+          couponId,
+          couponCode: appliedCouponCode,
+          discountPercent,
+          discountAmount,
+          originalAmount: selectedPrice,
+        } : {}),
         metadata: {
           userAgent: req.get("user-agent"),
           ipAddress: req.ip,
@@ -359,9 +392,17 @@ export const createSubscriptionOrder = async (
     resStatusData(res, "success", "Order created successfully", {
       orderId: razorpayOrder.id,
       subscriptionId: subscription._id,
-      amount: selectedPrice,
+      amount: finalPrice,
       currency: "INR",
       userEmail: user.email,
+      coupon: applicableCoupon ? {
+        code: appliedCouponCode,
+        name: applicableCoupon.name,
+        discountPercent,
+        discountAmount,
+        originalAmount: selectedPrice,
+        finalAmount: finalPrice,
+      } : null,
       planDetails: {
         name: plan.name,
         tier: selectedTier.id,
@@ -541,6 +582,13 @@ export const verifySubscription = async (
       throw txError;
     } finally {
       session.endSession();
+    }
+
+    // Mark coupon as used (non-blocking)
+    if (subscription.couponId) {
+      markCouponUsed(String(subscription.couponId), String(userId)).catch((err) =>
+        console.error("[Coupon] Failed to mark coupon used:", err)
+      );
     }
 
     if (subscription.changeType === "upgrade" && subscription.replacesSubscriptionId) {

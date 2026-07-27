@@ -23,7 +23,8 @@ import {
   downloadPayoutInvoicePDF,
 } from "../Controllers/AdminPayoutController";
 import { recordEarning, getUserEarnings } from '../Controllers/EarningController';
-import { getAdminBusinessWalletTransactions } from '../Controllers/WalletController';
+import { getAdminBusinessWalletTransactions, adminDeductWallet } from '../Controllers/WalletController';
+import { createCoupon, getAllCoupons, toggleCouponStatus, deleteCoupon } from '../Controllers/CouponController';
 import { triggerWithdrawalEligibilityUpdate } from "../Cron/SubscriptionCron";
 import { getAllInvoices, getInvoiceById, getInvoicesByUser, exportInvoices } from "../Controllers/InvoiceController";
 import {
@@ -118,8 +119,15 @@ export const adminRoutes = (app: Express): void => {
   app.get("/admin/analytics/subscriptions", adminMiddleware, errCatch(getSubscriptionAnalytics));
   app.get("/admin/analytics/wallets", adminMiddleware, errCatch(getWalletMonitoring));
   app.get("/admin/wallet/transactions/:user_id", adminMiddleware, errCatch(getAdminBusinessWalletTransactions));
+  app.post("/admin/wallet/deduct/:user_id", adminMiddleware, errCatch(adminDeductWallet));
   app.get("/admin/analytics/creators", adminMiddleware, errCatch(getCreatorAnalytics));
   app.get("/admin/analytics/businesses", adminMiddleware, errCatch(getBusinessAnalytics));
+
+  // Coupon routes
+  app.post("/admin/coupons", adminMiddleware, errCatch(createCoupon));
+  app.get("/admin/coupons", adminMiddleware, errCatch(getAllCoupons));
+  app.patch("/admin/coupons/:id/toggle", adminMiddleware, errCatch(toggleCouponStatus));
+  app.delete("/admin/coupons/:id", adminMiddleware, errCatch(deleteCoupon));
 
   // PHASE: Admin Payout Management
   app.get("/admin/payouts/all-pending", adminMiddleware, errCatch(getAllPendingPayouts));

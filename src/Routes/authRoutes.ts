@@ -10,6 +10,7 @@ import { changeStatus, sendNotification, sendNotificationToAll, showNotification
 import { showProfileHealth } from "../Controllers/ratingController";
 import { changeRating, editProfile } from "../Controllers/ProfileController";
 import { verifySubscription, getSubscriptionDetails } from "../Controllers/SubscriptionController";
+import { validateCouponForUser, getActiveCouponForUser } from "../Controllers/CouponController";
 import {
   getOrCreateWallet,
   getWalletBalance,
@@ -64,6 +65,8 @@ export const userRoutes = (app: Express): void => {
   // Subscription routes
   app.post("/subscription/verify", businessMiddleware, errCatch(verifySubscription));
   app.get("/subscription/details", businessMiddleware, errCatch(getSubscriptionDetails));
+  app.get("/subscription/coupon/validate", businessMiddleware, errCatch(validateCouponForUser));
+  app.get("/subscription/coupon/active", businessMiddleware, errCatch(getActiveCouponForUser));
 
   // Wallet routes
   app.get("/wallet/balance", businessMiddleware, errCatch(getWalletBalance));

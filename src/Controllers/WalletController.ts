@@ -299,8 +299,77 @@ export const getAdminBusinessWalletTransactions = async (req: Request, res: Resp
 };
 
 /**
- * Check if user can create offer
+ * Admin: Manually deduct amount from a business wallet
+ * POST /admin/wallet/deduct/:user_id
+ * Body: { amount: number, reason: string }
  */
+export const adminDeductWallet = async (req: Request, res: Response) => {
+  try {
+    const { user_id } = req.params;
+    const { amount, reason } = req.body;
+
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      return resStatusData(res, "error", "Valid amount is required", null);
+    }
+    if (!reason || String(reason).trim() === "") {
+      return resStatusData(res, "error", "Reason is required", null);
+    }
+
+    const deductAmount = Number(amount);
+
+    // Find the wallet
+    const wallet = await Wallet.findOne({ user_id });
+    if (!wallet) {
+      return resStatusData(res, "error", "Wallet not found for this user", null);
+    }
+
+    // Check sufficient available balance
+    if (wallet.available_balance < deductAmount) {
+      return resStatusData(
+        res,
+        "error",
+        `Insufficient available balance. Available: ₹${wallet.available_balance}`,
+        null
+      );
+    }
+
+    const balanceBefore = wallet.available_balance;
+
+    // Deduct from available_balance and total_balance
+    wallet.available_balance -= deductAmount;
+    wallet.total_balance -= deductAmount;
+    await wallet.save();
+
+    const balanceAfter = wallet.available_balance;
+
+    // Log the transaction
+    await WalletTransaction.create({
+      wallet_id: wallet._id,
+      user_id,
+      type: "debit",
+      amount: deductAmount,
+      status: "completed",
+      description: `Admin deduction: ${String(reason).trim()}`,
+      reference_type: "withdrawal",
+      balance_before: balanceBefore,
+      balance_after: balanceAfter,
+      metadata: { deductedBy: "admin", reason: String(reason).trim() },
+    });
+
+    return resStatusData(res, "success", "Amount deducted from wallet successfully", {
+      deducted: deductAmount,
+      balance_before: balanceBefore,
+      balance_after: balanceAfter,
+      available_balance: wallet.available_balance,
+      total_balance: wallet.total_balance,
+      locked_balance: wallet.locked_balance,
+    });
+  } catch (error: any) {
+    console.error("Admin deduct wallet error:", error);
+    return resStatusData(res, "error", error.message, null);
+  }
+};
+
 export const checkOfferEligibility = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user._id;

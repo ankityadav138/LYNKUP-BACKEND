@@ -43,6 +43,12 @@ export interface SubscriptionData extends Document {
   renewalFailureReason?: string; // last failure message from Razorpay
   paymentFailedAt?: Date; // timestamp of last payment failure
   accessRestrictedAt?: Date; // when access was restricted due to non-payment
+  // Coupon / discount fields
+  couponId?: ObjectId;        // ref to CouponModel
+  couponCode?: string;        // e.g. "LYNKUP20" – stored for display
+  discountPercent?: number;   // % discount applied
+  discountAmount?: number;    // absolute INR discount applied
+  originalAmount?: number;    // base amount before discount
   metadata?: {
     userAgent?: string;
     ipAddress?: string;
@@ -244,11 +250,17 @@ const subscriptionSchema = new Schema<SubscriptionData>(
       type: Date,
       required: false,
     },
+    // Coupon / discount tracking
+    couponId: { type: Schema.Types.ObjectId, ref: "Coupon", required: false },
+    couponCode: { type: String, required: false },
+    discountPercent: { type: Number, required: false },
+    discountAmount: { type: Number, required: false },
+    originalAmount: { type: Number, required: false },
     metadata: {
       type: {
         userAgent: { type: String, required: false },
         ipAddress: { type: String, required: false },
-        source: { type: String, required: false }, // "web", "mobile", etc.
+        source: { type: String, required: false },
       },
       required: false,
     },
