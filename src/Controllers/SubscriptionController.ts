@@ -664,7 +664,7 @@ export const getSubscriptionDetails = async (
     // Find active subscription
     const subscription = await SubscriptionModel.findOne({
       userId,
-      status: "active",
+      status: { $in: ["active", "expiring_soon", "grace_period"] },
     }).populate("planId");
 
     if (!subscription) {
@@ -675,54 +675,62 @@ export const getSubscriptionDetails = async (
       return;
     }
 
-    // Guard: if endDate is missing, treat subscription as expired
-    if (!subscription.endDate) {
-      subscription.status = "expired";
-      await subscription.save();
-      await User.findByIdAndUpdate(userId, {
-        hasActiveSubscription: false,
-        currentSubscriptionId: null,
-      });
-      resStatusData(res, "success", "Subscription expired", {
-        subscription: null,
-        message: "User subscription has expired",
-      });
-      return;
-    }
-
     // Safely coerce to Date objects regardless of how MongoDB stored them
-    const endDateObj = new Date(subscription.endDate as any);
-    const now = new Date();
-
-    // Check if subscription has expired
-    if (endDateObj < now) {
-      subscription.status = "expired";
-      await subscription.save();
-      await User.findByIdAndUpdate(userId, {
-        hasActiveSubscription: false,
-        currentSubscriptionId: null,
-      });
-      resStatusData(res, "success", "Subscription expired", {
-        subscription: null,
-        message: "User subscription has expired",
-      });
-      return;
-    }
-
-    // Calculate days remaining
-    const daysRemaining = Math.max(
-      0,
-      Math.ceil((endDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-    );
-
-    // Calculate grace days remaining if applicable
+    const endDateObj = subscription.endDate ? new Date(subscription.endDate as any) : null;
     const graceEndDateObj = subscription.graceEndDate
       ? new Date(subscription.graceEndDate as any)
       : null;
-    const graceDaysRemaining = graceEndDateObj && !isNaN(graceEndDateObj.getTime())
-      ? Math.max(0, Math.ceil((graceEndDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+    const now = new Date();
+
+    // Only hard-expire if BOTH endDate AND graceEndDate have passed.
+    // Leave the actual status transitions (active → grace_period → expired) to the cron job.
+    if (endDateObj && endDateObj < now) {
+      if (graceEndDateObj && graceEndDateObj >= now) {
+        // Still within grace period — allow access, update status if stale
+        if (subscription.status !== "grace_period") {
+          subscription.status = "grace_period";
+          subscription.isInGracePeriod = true;
+          await subscription.save();
+        }
+      } else if (!graceEndDateObj) {
+        // No grace end date set — compute it (3 days after endDate) for legacy records
+        const computedGraceEnd = new Date(endDateObj);
+        computedGraceEnd.setDate(computedGraceEnd.getDate() + 3);
+        if (computedGraceEnd >= now) {
+          subscription.status = "grace_period";
+          subscription.isInGracePeriod = true;
+          subscription.graceEndDate = computedGraceEnd;
+          await subscription.save();
+        } else {
+          // Truly expired — just report no active subscription; let cron clean up
+          resStatusData(res, "success", "No active subscription", {
+            subscription: null,
+            message: "User has no active subscription",
+          });
+          return;
+        }
+      } else {
+        // Grace period also passed — truly expired
+        resStatusData(res, "success", "No active subscription", {
+          subscription: null,
+          message: "User has no active subscription",
+        });
+        return;
+      }
+    }
+
+    // Calculate days remaining
+    const daysRemaining = endDateObj
+      ? Math.max(0, Math.ceil((endDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
       : 0;
 
+    // Calculate grace days remaining if applicable
+    const updatedGraceEndDateObj = subscription.graceEndDate
+      ? new Date(subscription.graceEndDate as any)
+      : null;
+    const graceDaysRemaining = updatedGraceEndDateObj && !isNaN(updatedGraceEndDateObj.getTime())
+      ? Math.max(0, Math.ceil((updatedGraceEndDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+      : 0;
 
     resStatusData(res, "success", "Subscription details retrieved", {
       subscription: {

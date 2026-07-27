@@ -6,7 +6,7 @@ export interface SubscriptionData extends Document {
   tier: string; // "silver", "gold", "platinum", "diamond"
   duration: number; // 1, 3, 6, 12 (months)
   status: "pending" | "active" | "expiring_soon" | "grace_period" | "expired" | "cancelled";
-  paymentStatus: "pending" | "completed" | "failed";
+  paymentStatus: "pending" | "completed" | "failed" | "success";
   startDate: Date;
   endDate: Date;
   graceEndDate?: Date; // 3 days after endDate
@@ -87,7 +87,7 @@ const subscriptionSchema = new Schema<SubscriptionData>(
     paymentStatus: {
       type: String,
       required: true,
-      enum: ["pending", "completed", "failed"],
+      enum: ["pending", "completed", "failed", "success"],
       default: "pending",
     },
     startDate: {
