@@ -499,12 +499,22 @@ export const influencerAccount = async (
     updatedUser
   );
 };
+// export const privacyPolicy = async (
+//   req: Request,
+//   res: Response,
+//   next: NextFunction
+// ): Promise<void> => {
+//   res.sendFile(path.join(__dirname, "../../views/privacyPolicy.html"));
+// };
+
 export const privacyPolicy = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  res.sendFile(path.join(__dirname, "../../views/privacyPolicy.html"));
+  res.sendFile(
+    path.join(process.cwd(), "views", "privacyPolicy.html")
+  );
 };
 export const AcceptedProfileRequest = async (
   req: Request | any,
