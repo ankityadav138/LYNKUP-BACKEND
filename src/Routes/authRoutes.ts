@@ -1,6 +1,6 @@
 import { Express } from "express";
 import { errCatch } from "../utils/errorCatch";
-import { addPlayerId, deleteUser, influencerAccount, InstagramMobileLogin, permanentlyDeleteUser, privacyPolicy, userLogin, userLogout } from "../Controllers/AuthLoginController";
+import { addPlayerId, deleteAccountPage, deleteUser, influencerAccount, InstagramMobileLogin, permanentlyDeleteUser, privacyPolicy, userLogin, userLogout } from "../Controllers/AuthLoginController";
 import { canceledBookings, contentUpload, createBooking, reUpload, showBookingForRestro, showBookings, filterUserFeedback, rescheduleBooking } from "../Controllers/BookingController";
 import { adminMiddleware, businessMiddleware, userMiddleware } from "../Middelware/Auth";
 import { Feedback, showOfferAdmin, showOfferByID, showOfferUser, universalSearch, getPaidCollaborations } from "../Controllers/offerController";
@@ -88,5 +88,6 @@ export const userRoutes = (app: Express): void => {
   app.post("/admin/wallet/reject-withdrawal/:request_id", adminMiddleware, errCatch(rejectWithdrawal));
   // Instagram OAuth callback
   app.get("/auth/instagram/callback", instagramCallback);
+  app.get("/delete-account", deleteAccountPage);
 };
 

@@ -516,6 +516,15 @@ export const privacyPolicy = async (
     path.join(process.cwd(), "views", "privacyPolicy.html")
   );
 };
+
+export const deleteAccountPage = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  res.sendFile(
+    path.join(process.cwd(), "views", "deleteAccount.html")
+  );
+};
 export const AcceptedProfileRequest = async (
   req: Request | any,
   res: Response,
