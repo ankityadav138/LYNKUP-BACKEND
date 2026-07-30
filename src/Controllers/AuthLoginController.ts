@@ -48,7 +48,7 @@ export const InstagramMobileLogin = async (
         {
           params: {
             fields:
-              "followers_count,follows_count,media_count",
+              "username,followers_count,follows_count,media_count",
             access_token,
           },
         }
