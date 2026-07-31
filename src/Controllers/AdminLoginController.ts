@@ -59,7 +59,7 @@ export const adminSignup = async (
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await UserModel.create({
       name,
-      email:email.toLowerCase(),
+      email: email.toLowerCase(),
       password: hashedPassword,
       userType,
       profileImage: req.file ? ((req.file as any).location || `image/${req.file.filename}`) : undefined,
@@ -98,7 +98,7 @@ export const adminLogin = async (
         resStatus401(res, "false", "Business account is deleted");
         return;
       }
-    
+
       // Check document verification status
       if (!businessUser.documentVerified) {
         resStatusData(res, "pending_verification", "Your business documents are under review. You'll receive an email once approved.", {
@@ -156,26 +156,26 @@ export const adminLogin = async (
 
 
 export const businessSignup = async (
-  req: Request|any,
+  req: Request | any,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   const { firstName, lastName, phone, name, email, address, password, location } =
     req.body;
-    
-    const files = req.files;
-    // ⚠️ When AWS S3 is disabled, file.location won't exist, so allow empty array
-    const mediaFiles = files && files.length > 0 ? files.map((file: any) => file.location || file.path || '') : [];
-    
-    if (!email) {
-      responsestatusmessage(res, "false", "Email is required.");
-      return;
-    }
-    
-    const normalizedEmail = email.toLowerCase();
+
+  const files = req.files;
+  // ⚠️ When AWS S3 is disabled, file.location won't exist, so allow empty array
+  const mediaFiles = files && files.length > 0 ? files.map((file: any) => file.location || file.path || '') : [];
+
+  if (!email) {
+    responsestatusmessage(res, "false", "Email is required.");
+    return;
+  }
+
+  const normalizedEmail = email.toLowerCase();
   const parsedLocation =
     typeof location === "string" ? JSON.parse(location) : location;
-    
+
   // ⚠️ Set default coordinates if missing or invalid (Delhi, India as default)
   const defaultCoordinates = [77.1025, 28.7041]; // [longitude, latitude] - Delhi
   const coordinates = parsedLocation?.coordinates || [];
@@ -183,7 +183,7 @@ export const businessSignup = async (
     parseFloat(coordinates[0]) || defaultCoordinates[0],
     parseFloat(coordinates[1]) || defaultCoordinates[1]
   ];
-  
+
   const otp = generateOtp();
   if (!name || !email || !password) {
     responsestatusmessage(res, "false", "All fields are required.");
@@ -197,14 +197,14 @@ export const businessSignup = async (
         // Update OTP in database
         existingUser.otp = otp;
         await existingUser.save();
-        
+
         // Send OTP email
         try {
           await sendOtpOnMailMailgun(email, otp);
         } catch (emailError) {
           console.error("Failed to resend OTP email:", emailError);
         }
-        
+
         responsestatusmessage(
           res,
           "false",
@@ -217,10 +217,10 @@ export const businessSignup = async (
       // ⚠️ Allow signup without documents when AWS S3 is disabled
       // if(mediaFiles){
       const hashedPassword = await bcrypt.hash(password, 10);
-     
+
       const userDetails = {
         name,
-        email:email,
+        email: email,
         password: hashedPassword,
         firstName,
         lastName,
@@ -236,7 +236,7 @@ export const businessSignup = async (
         otp,
         isVerified: false,
       };
-      
+
       const newUser = await UserModel.create(userDetails);
 
       // Send OTP email (OTP is already stored in user document)
@@ -252,10 +252,10 @@ export const businessSignup = async (
         "success",
         "Business user created successfully. OTP has been sent to your email."
       );
-    // }
-    // else{
-    //   resStatus(res,"false","upload document first")
-    // }
+      // }
+      // else{
+      //   resStatus(res,"false","upload document first")
+      // }
     }
   }
 };
@@ -265,33 +265,33 @@ export const uploadDocumentverify = async (
 ): Promise<void> => {
   try {
     // const {businessId} = req.query;
-    const {status,businessId} = req.body
+    const { status, businessId } = req.body
     if (!businessId) {
       resStatus(res, "false", "Business Id is required.");
       return;
     }
-   else if (!status) {
+    else if (!status) {
       resStatus(res, "false", "Business Id is required.");
       return;
     }
-    const business  = await UserModel.findOne({ _id:businessId });
+    const business = await UserModel.findOne({ _id: businessId });
     if (business) {
       const updated = await UserModel.findOneAndUpdate(
-        {_id: businessId },
-        { documentVerified:status },
+        { _id: businessId },
+        { documentVerified: status },
         { new: true }
       );
       const ss = updated?.documentVerified
-      const  ee = updated?.email || ''
+      const ee = updated?.email || ''
       if (ss === true) {
         const fullName = `${business.firstName || ""} ${business.lastName || ""}`.trim();
         await sendProfileVerifiedEmail(ee, fullName);
       }
-  
+
       resStatusData(res, "success", "document verified successfully.", updated);
       return;
-    }else{
-      resStatus(res,"false","business not found");
+    } else {
+      resStatus(res, "false", "business not found");
     }
 
   } catch (error) {
@@ -310,37 +310,37 @@ export const verifyOtp = async (
     return;
   }
   const normalizedEmail = email.toLowerCase();
-  
+
   // Get OTP from database (stored in user document)
   const existingUser = await UserModel.findOne({ email: normalizedEmail });
-  
+
   if (!existingUser) {
     resStatus(res, "false", "User not found. Please register first.");
     return;
   }
-  
+
   const storedOtp = existingUser.otp;
-  
+
   if (!storedOtp) {
     resStatus(res, "false", "OTP not found. Please request a new OTP.");
     return;
   }
-  
+
   if (otp.toString().trim() === storedOtp.toString().trim()) {
     // User already fetched above, no need to fetch again
     if (existingUser.isVerified) {
       resStatus(res, "false", "User already verified.");
       return;
     }
-    
+
     const updatedUser = await UserModel.findOneAndUpdate(
-      { email:normalizedEmail },
+      { email: normalizedEmail },
       { isVerified: true, otp: null },
       { new: true }
     );
     const Id = updatedUser?._id as Types.ObjectId;
     const token = genToken(Id);
-    
+
     resStatusDataToken(
       res,
       "success",
@@ -362,7 +362,7 @@ export const forgotPassword = async (
     return;
   }
   const Email = email.toLowerCase();
-  const user = await UserModel.findOne({email:Email});
+  const user = await UserModel.findOne({ email: Email });
   if (!user) {
     resStatus(res, "false", "User not found.");
     return;
@@ -382,7 +382,7 @@ export const resetPassword = async (
     return;
   }
   const normalizedEmail = email.toLowerCase();
-  const user = await UserModel.findOne({ email :normalizedEmail,userType:'business'});
+  const user = await UserModel.findOne({ email: normalizedEmail, userType: 'business' });
   if (!user) {
     resStatus(res, "false", "User not found.");
     return;
@@ -393,7 +393,7 @@ export const resetPassword = async (
     return;
   }
   const hashedPassword = await bcrypt.hash(newPassword, 10);
-   await UserModel.findOneAndUpdate(
+  await UserModel.findOneAndUpdate(
     { email: email.toLowerCase(), userType: "business" },
     { $set: { password: hashedPassword, passwordChangedAt: new Date(), } },
     { new: true }
@@ -408,28 +408,30 @@ export const changePassword = async (
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) {
     resStatus(res, "false", "Current and new password are required.");
-  }else{
-  const user = await UserModel.findById(userId);
-  if (!user) {
-    resStatus(res, "false", "User not found.");
-  }else{
-  const isMatch = await bcrypt.compare(currentPassword, user.password);
-  if (!isMatch) {
-    resStatus(res, "false", "Current password is incorrect.");
-  }else{
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  const updatedUser = await UserModel.findByIdAndUpdate(
-    userId,
-    { $set: { password: hashedPassword, passwordChangedAt: new Date(), } },
-    { new: true }
-  );
-  if (!updatedUser) {
-    resStatus(res, "false", "Failed to update password.");
-    
-  }else{
-  resStatus(res, "success", "Password changed successfully.");
-  }}
-  }}
+  } else {
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      resStatus(res, "false", "User not found.");
+    } else {
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
+        resStatus(res, "false", "Current password is incorrect.");
+      } else {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const updatedUser = await UserModel.findByIdAndUpdate(
+          userId,
+          { $set: { password: hashedPassword, passwordChangedAt: new Date(), } },
+          { new: true }
+        );
+        if (!updatedUser) {
+          resStatus(res, "false", "Failed to update password.");
+
+        } else {
+          resStatus(res, "success", "Password changed successfully.");
+        }
+      }
+    }
+  }
 };
 
 export const profileVerified = async (
@@ -488,7 +490,7 @@ export const listOfBusinessUser = async (
       ]);
 
       const userIds = users.map((u) => u._id);
-      
+
       // Fetch wallets
       const wallets = await Wallet.find({ user_id: { $in: userIds } }).lean();
       const walletMap: Record<string, any> = wallets.reduce((acc: Record<string, any>, w: any) => {
@@ -501,7 +503,7 @@ export const listOfBusinessUser = async (
         userId: { $in: userIds },
         status: { $in: ["active", "expiring_soon", "grace_period", "pending"] },
       }).populate("planId").lean();
-      
+
       const subscriptionMap: Record<string, any> = subscriptions.reduce((acc: Record<string, any>, sub: any) => {
         acc[sub.userId.toString()] = sub;
         return acc;
@@ -512,7 +514,7 @@ export const listOfBusinessUser = async (
         const now = new Date();
         let daysRemaining = 0;
         let graceDaysRemaining = 0;
-        
+
         if (subscription?.endDate) {
           daysRemaining = Math.max(0, Math.ceil((new Date(subscription.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
         }
@@ -554,7 +556,7 @@ export const listOfBusinessUser = async (
       totalCount = users.length;
 
       const userIds = users.map((u) => u._id);
-      
+
       const wallets = await Wallet.find({ user_id: { $in: userIds } }).lean();
       const walletMap: Record<string, any> = wallets.reduce((acc: Record<string, any>, w: any) => {
         acc[w.user_id.toString()] = w;
@@ -565,7 +567,7 @@ export const listOfBusinessUser = async (
         userId: { $in: userIds },
         status: { $in: ["active", "expiring_soon", "grace_period", "pending"] },
       }).populate("planId").lean();
-      
+
       const subscriptionMap: Record<string, any> = subscriptions.reduce((acc: Record<string, any>, sub: any) => {
         acc[sub.userId.toString()] = sub;
         return acc;
@@ -576,7 +578,7 @@ export const listOfBusinessUser = async (
         const now = new Date();
         let daysRemaining = 0;
         let graceDaysRemaining = 0;
-        
+
         if (subscription?.endDate) {
           daysRemaining = Math.max(0, Math.ceil((new Date(subscription.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
         }
@@ -626,7 +628,7 @@ export const listOfAllBusinessUser = async (
   const pageNumber = parseInt(page as string, 10) || 1;
   const pageSize = parseInt(limit as string, 10) || 10;
   const skip = (pageNumber - 1) * pageSize;
-  const query = { userType: "business", isDeleted: false, documentVerified:false };
+  const query = { userType: "business", isDeleted: false, documentVerified: false };
   const sort = { createdAt: -1 };
   try {
     const [users, totalCount] = await Promise.all([
@@ -671,29 +673,29 @@ export const getUserByToken = async (
   let finalToken = tokenInDB;
 
   try {
-    let tokenRefreshed = false;
-
-    // Step 1: Try to exchange short-lived token for a long-lived token
     try {
       const exchange: any = await axios.get("https://graph.instagram.com/access_token", {
         params: {
+
           grant_type: "ig_exchange_token",
           client_secret: process.env.FACEBOOK_APP_SECRET || "76a8b193787892f6bf2459abeb935d7b",
+          // client_secret:"0f31af4a8102b8bbae2e0e4d8f784d1b",
           access_token: tokenInDB,
         },
       });
+
       longLivedToken = exchange.data.access_token;
       finalToken = longLivedToken;
-      tokenRefreshed = true;
+
       await UserModel.findByIdAndUpdate(userId, {
         accessToken: longLivedToken,
         lastTokenRefresh: now,
       });
+
     } catch (exchangeError: any) {
       console.error("Token exchange failed:", exchangeError.response?.data?.error?.message || exchangeError.message);
     }
 
-    // Step 2: Try to refresh the long-lived token
     try {
       const refresh: any = await axios.get("https://graph.instagram.com/refresh_access_token", {
         params: {
@@ -701,39 +703,17 @@ export const getUserByToken = async (
           access_token: longLivedToken,
         },
       });
+
       finalToken = refresh.data.access_token;
-      tokenRefreshed = true;
+
       await UserModel.findByIdAndUpdate(userId, {
         accessToken: finalToken,
         lastTokenRefresh: now,
       });
+
     } catch (refreshErr: any) {
       console.error("Token refresh failed:", refreshErr.response?.data?.error?.message || refreshErr.message);
     }
-
-    // Step 3: If token is still the original expired one, skip Instagram API calls
-    // and return stored user data with a re-login flag so the app can prompt the user.
-    if (!tokenRefreshed) {
-      console.warn(`Instagram token fully expired for user ${userId}. Returning stored data.`);
-      const storedUser = await UserModel.findById(userId).select("-password -__v");
-      const earnings = await EarningModel.find({ userId }).lean();
-      const earningTotal = earnings.reduce(
-        (sum, earning) => sum + (typeof earning.amount === "number" ? earning.amount : 0),
-        0
-      );
-      if ((storedUser?.strikeCount ?? 0) >= 3 && !storedUser?.blocked) {
-        await UserModel.findByIdAndUpdate(userId, { blocked: true });
-        return resStatusData(res, "false", "User is blocked.", { ...storedUser?.toObject?.(), earnings, earningTotal });
-      }
-      return resStatusData(res, "success", "User retrieved successfully.", {
-        ...storedUser?.toObject?.(),
-        earnings,
-        earningTotal,
-        requiresInstagramReLogin: true, // Frontend should prompt user to re-authenticate Instagram
-      });
-    }
-
-    // Step 4: Token is valid — fetch fresh profile and insights from Instagram
     const profileRes: any = await axios.get("https://graph.instagram.com/me", {
       params: {
         fields: "id,username,followers_count,media_count",
@@ -766,10 +746,10 @@ export const getUserByToken = async (
       engagementRate,
     };
     const followersCount = userProfile.followers_count || 0;
+    // Safely calculate to avoid NaN from division by zero
     const followersWhoEngaged = reach > 0 ? Math.round((accountsEngaged * followersCount) / reach) : 0;
     const nonFollowersWhoEngaged = Math.max(accountsEngaged - followersWhoEngaged, 0);
     const nonFollowers = reach > 0 ? Math.max(Math.round(reach - followersCount), 0) : 0;
-
     await UserModel.findByIdAndUpdate(userId, {
       insights: insightsUpdate,
       businessDiscovery: {
@@ -927,19 +907,20 @@ export const getUserByTokenPanel = async (
     resStatus(res, "false", "User not found.");
     return;
   }
-  else{
- 
-  const strike = user.strikeCount ?? 0;
-  if (strike >= 3 && !user.blocked) {
-   const User = await UserModel.findByIdAndUpdate(
-      userId,
-      { blocked: true },
-      { new: true }
-    ).select("-password -__v");
-    resStatusData(res, "false", "User is blocked.", User);
-  } else {
-    resStatusData(res, "success", "User retrieved successfully.", user);
-  }}
+  else {
+
+    const strike = user.strikeCount ?? 0;
+    if (strike >= 3 && !user.blocked) {
+      const User = await UserModel.findByIdAndUpdate(
+        userId,
+        { blocked: true },
+        { new: true }
+      ).select("-password -__v");
+      resStatusData(res, "false", "User is blocked.", User);
+    } else {
+      resStatusData(res, "success", "User retrieved successfully.", user);
+    }
+  }
 };
 export const restroGrade = async (
   req: Request | any,
@@ -978,7 +959,7 @@ export const adminLogout = async (
   req: Request | any,
   res: Response,
   next: NextFunction
-): Promise<void> => {};
+): Promise<void> => { };
 export const getAlluser = async (
   req: Request | any,
   res: Response,
@@ -1149,7 +1130,7 @@ export const getUserByID = async (
 ): Promise<void> => {
   try {
     // const userId = req.user._id; 
-    const Id = req.query.userId; 
+    const Id = req.query.userId;
     if (!mongoose.Types.ObjectId.isValid(Id)) {
       resStatus(res, "false", "Invalid user ID format.");
       return;
@@ -1161,8 +1142,8 @@ export const getUserByID = async (
     }
     const strike = user.strikeCount ?? 0;
     if (strike >= 3 && !user.blocked) {
-     const User = await UserModel.findByIdAndUpdate(
-        Id, 
+      const User = await UserModel.findByIdAndUpdate(
+        Id,
         { blocked: true },
         { new: true }
       ).select("-password -__v");
@@ -1173,7 +1154,7 @@ export const getUserByID = async (
     resStatusData(res, "success", "User retrieved successfully.", user);
     return;
   } catch (error) {
-    next(error); 
+    next(error);
   }
 };
 export const deleteBusiness = async (
@@ -1247,7 +1228,7 @@ export const giveStrikeUser = async (
     } else {
       user.blocked = false;
     }
-    await user.save(); 
+    await user.save();
 
     let playerIDs: string[] = user?.playerId || ["a91b270e-e75c-4e05-b31c-24ff470f7781"];
 
@@ -1287,7 +1268,7 @@ export const userFeedbackByAdmin = async (req: Request, res: Response): Promise<
 
   if (!influencerId) {
     resStatus(res, "false", "Influencer ID is required.");
-    return 
+    return
   }
 
   try {
@@ -1300,7 +1281,7 @@ export const userFeedbackByAdmin = async (req: Request, res: Response): Promise<
     const booking = await BookingModel.findById(bookingId);
     if (!booking) {
       resStatus(res, "false", "Booking not found.");
-      return 
+      return
     }
 
     const offer = await OfferModel.findById(booking.offerId);
@@ -1353,59 +1334,60 @@ export const userFeedbackByAdmin = async (req: Request, res: Response): Promise<
     );
 
     resStatusData(res, "success", "Feedback saved and notification sent.", feedbackRecord);
-    return 
+    return
   } catch (err: any) {
     console.error(err);
     resStatus(res, "false", `Server error: ${err.message}`);
-    return 
+    return
   }
 };
 
 
 export const editBusiness = async (req: Request, res: Response): Promise<void> => {
   const { firstName, lastName, phone, name, email, address, location } = req.body;
-  const { userId } = req.query; 
+  const { userId } = req.query;
   const parsedLocation = typeof location === "string" ? JSON.parse(location) : location;
   if (!userId) {
     responsestatusmessage(res, "false", "User ID is required.");
     return;
-  }else{
-  const businessUser = await UserModel.findById(userId);
-  if (!businessUser) {
-    responsestatusmessage(res, "false", "Business user not found.");
-    return;
-  }
-  else{
-  const updatedBusinessUser = await UserModel.findByIdAndUpdate(
-    userId,
-    {
-      firstName: firstName || businessUser.firstName,
-      lastName: lastName || businessUser.lastName,
-      name: name || businessUser.name,
-      email: email.toLowerCase() || businessUser.email,
-      phone: phone || businessUser.phone, 
-      address: address || businessUser.address,
-      location: parsedLocation
-        ? {
-            type: parsedLocation.type,
-            coordinates: parsedLocation.coordinates,
-            address: parsedLocation.address,
-          }
-        : businessUser.location,
-    },
-    { new: true } 
-  );
-   if(updatedBusinessUser){
-     resStatusData(res, "success", "Business details updated successfully.", updatedBusinessUser);
+  } else {
+    const businessUser = await UserModel.findById(userId);
+    if (!businessUser) {
+      responsestatusmessage(res, "false", "Business user not found.");
+      return;
+    }
+    else {
+      const updatedBusinessUser = await UserModel.findByIdAndUpdate(
+        userId,
+        {
+          firstName: firstName || businessUser.firstName,
+          lastName: lastName || businessUser.lastName,
+          name: name || businessUser.name,
+          email: email.toLowerCase() || businessUser.email,
+          phone: phone || businessUser.phone,
+          address: address || businessUser.address,
+          location: parsedLocation
+            ? {
+              type: parsedLocation.type,
+              coordinates: parsedLocation.coordinates,
+              address: parsedLocation.address,
+            }
+            : businessUser.location,
+        },
+        { new: true }
+      );
+      if (updatedBusinessUser) {
+        resStatusData(res, "success", "Business details updated successfully.", updatedBusinessUser);
 
-   }else{
-    resStatus(res,"false","user not updated")
-   }
-  }}
+      } else {
+        resStatus(res, "false", "user not updated")
+      }
+    }
+  }
 };
-export const getUserForAdmin = async (req: Request |any, res: Response,next: NextFunction): Promise<void> => {
+export const getUserForAdmin = async (req: Request | any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const Id = req.query.userId; 
+    const Id = req.query.userId;
     if (!mongoose.Types.ObjectId.isValid(Id)) {
       resStatus(res, "false", "Invalid user ID format.");
       return;
@@ -1418,12 +1400,12 @@ export const getUserForAdmin = async (req: Request |any, res: Response,next: Nex
     resStatusData(res, "success", "User retrieved successfully.", user);
     return;
   } catch (error) {
-    next(error); 
+    next(error);
   }
 }
-export const permanentlyDeletebusiness = async (req: Request |any, res: Response): Promise<void> => {
+export const permanentlyDeletebusiness = async (req: Request | any, res: Response): Promise<void> => {
   try {
-    const {userId} = req.body;
+    const { userId } = req.body;
     if (!userId) {
       resStatus(res, "false", "User ID is required");
       return;
@@ -1435,7 +1417,7 @@ export const permanentlyDeletebusiness = async (req: Request |any, res: Response
     }
     await OfferModel.updateMany(
       { userId },
-      { $set: { isdeleted: true } } 
+      { $set: { isdeleted: true } }
     );
     await UserModel.findByIdAndUpdate(userId, {
       $set: { isDeleted: true }
