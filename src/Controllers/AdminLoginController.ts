@@ -671,29 +671,29 @@ export const getUserByToken = async (
   let finalToken = tokenInDB;
 
   try {
+    let tokenRefreshed = false;
+
+    // Step 1: Try to exchange short-lived token for a long-lived token
     try {
       const exchange: any = await axios.get("https://graph.instagram.com/access_token", {
         params: {
-          
           grant_type: "ig_exchange_token",
           client_secret: process.env.FACEBOOK_APP_SECRET || "76a8b193787892f6bf2459abeb935d7b",
-          // client_secret:"0f31af4a8102b8bbae2e0e4d8f784d1b",
           access_token: tokenInDB,
         },
       });
-
       longLivedToken = exchange.data.access_token;
       finalToken = longLivedToken;
-
+      tokenRefreshed = true;
       await UserModel.findByIdAndUpdate(userId, {
         accessToken: longLivedToken,
         lastTokenRefresh: now,
       });
-
     } catch (exchangeError: any) {
       console.error("Token exchange failed:", exchangeError.response?.data?.error?.message || exchangeError.message);
     }
 
+    // Step 2: Try to refresh the long-lived token
     try {
       const refresh: any = await axios.get("https://graph.instagram.com/refresh_access_token", {
         params: {
@@ -701,17 +701,39 @@ export const getUserByToken = async (
           access_token: longLivedToken,
         },
       });
-
       finalToken = refresh.data.access_token;
-
+      tokenRefreshed = true;
       await UserModel.findByIdAndUpdate(userId, {
         accessToken: finalToken,
         lastTokenRefresh: now,
       });
-
     } catch (refreshErr: any) {
       console.error("Token refresh failed:", refreshErr.response?.data?.error?.message || refreshErr.message);
     }
+
+    // Step 3: If token is still the original expired one, skip Instagram API calls
+    // and return stored user data with a re-login flag so the app can prompt the user.
+    if (!tokenRefreshed) {
+      console.warn(`Instagram token fully expired for user ${userId}. Returning stored data.`);
+      const storedUser = await UserModel.findById(userId).select("-password -__v");
+      const earnings = await EarningModel.find({ userId }).lean();
+      const earningTotal = earnings.reduce(
+        (sum, earning) => sum + (typeof earning.amount === "number" ? earning.amount : 0),
+        0
+      );
+      if ((storedUser?.strikeCount ?? 0) >= 3 && !storedUser?.blocked) {
+        await UserModel.findByIdAndUpdate(userId, { blocked: true });
+        return resStatusData(res, "false", "User is blocked.", { ...storedUser?.toObject?.(), earnings, earningTotal });
+      }
+      return resStatusData(res, "success", "User retrieved successfully.", {
+        ...storedUser?.toObject?.(),
+        earnings,
+        earningTotal,
+        requiresInstagramReLogin: true, // Frontend should prompt user to re-authenticate Instagram
+      });
+    }
+
+    // Step 4: Token is valid — fetch fresh profile and insights from Instagram
     const profileRes: any = await axios.get("https://graph.instagram.com/me", {
       params: {
         fields: "id,username,followers_count,media_count",
@@ -744,10 +766,10 @@ export const getUserByToken = async (
       engagementRate,
     };
     const followersCount = userProfile.followers_count || 0;
-    // Safely calculate to avoid NaN from division by zero
     const followersWhoEngaged = reach > 0 ? Math.round((accountsEngaged * followersCount) / reach) : 0;
     const nonFollowersWhoEngaged = Math.max(accountsEngaged - followersWhoEngaged, 0);
     const nonFollowers = reach > 0 ? Math.max(Math.round(reach - followersCount), 0) : 0;
+
     await UserModel.findByIdAndUpdate(userId, {
       insights: insightsUpdate,
       businessDiscovery: {
