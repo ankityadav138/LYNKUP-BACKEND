@@ -45,15 +45,34 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
         console.log("accesstokenn==>", accessToken);
         const userId: string = tokenResponse.data.user_id;
 
-        if (state === 'android') {
-            res.redirect(
-                `com.lynkupapplication.android://instagram-auth?access_token=${accessToken}&user_id=${userId}`
-            );
-        } else {
-            res.redirect(`com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
-        }
+        const deepLink = state === 'android'
+            ? `com.lynkupapplication.android://instagram-auth?access_token=${accessToken}&user_id=${userId}`
+            : `com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}`;
 
-        // res.redirect(`com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
+        // NOTE: res.redirect() with custom schemes (com.xxx://) is blocked by Chrome on Android
+        // when the server is on HTTPS. We must serve an HTML page that uses JS to trigger the deep link.
+        res.send(`<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Redirecting to LynkUp...</title>
+    <style>
+      body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f5f5f5; }
+      .box { text-align: center; padding: 2rem; }
+      p { color: #666; margin-top: 1rem; }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <h2>Redirecting to LynkUp...</h2>
+      <p>If the app doesn't open automatically, please relaunch it.</p>
+    </div>
+    <script>
+      window.location.href = ${JSON.stringify(deepLink)};
+    </script>
+  </body>
+</html>`);
 
     } catch (err: any) {
 
