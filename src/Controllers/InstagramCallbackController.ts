@@ -51,6 +51,9 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
             );
         } else {
             res.redirect(`com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
+            // Use 'myapp' scheme — this is the Expo canonical scheme registered in CFBundleURLSchemes
+            // 'com.ios.socialme' is the bundle identifier, not a URL scheme, so iOS routes it to Instagram
+            // res.redirect(`myapp://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
         }
 
         // res.redirect(`com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
