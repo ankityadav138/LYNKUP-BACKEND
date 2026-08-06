@@ -3478,7 +3478,11 @@ export const editOffer = async (
         ending_type,
         status,
         ...(collaboration_type === "paid" && fixed_amount
-          ? { fixed_amount: parseFloat(fixed_amount), original_fixed_amount: parseFloat(fixed_amount) }
+          ? (() => {
+              const originalAmt = parseFloat(fixed_amount);
+              const netAmt = Math.round(originalAmt * (1 - PLATFORM_COMMISSION_RATE));
+              return { fixed_amount: netAmt, original_fixed_amount: originalAmt };
+            })()
           : {}),
         ...(mediaFiles.length > 0 && { media: combinedMedia }),
       },
@@ -3582,7 +3586,11 @@ export const editOfferByBusiness = async (
         ending_type,
         status,
         ...(collaboration_type === "paid" && fixed_amount
-          ? { fixed_amount: parseFloat(fixed_amount), original_fixed_amount: parseFloat(fixed_amount) }
+          ? (() => {
+              const originalAmt = parseFloat(fixed_amount);
+              const netAmt = Math.round(originalAmt * (1 - PLATFORM_COMMISSION_RATE));
+              return { fixed_amount: netAmt, original_fixed_amount: originalAmt };
+            })()
           : {}),
         ...(mediaFiles.length > 0 && { media: mediaFiles }),
       },
