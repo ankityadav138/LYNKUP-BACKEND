@@ -27,6 +27,7 @@ import { getAdminBusinessWalletTransactions, adminDeductWallet } from '../Contro
 import { createCoupon, getAllCoupons, toggleCouponStatus, deleteCoupon } from '../Controllers/CouponController';
 import { triggerWithdrawalEligibilityUpdate } from "../Cron/SubscriptionCron";
 import { getAllInvoices, getInvoiceById, getInvoicesByUser, exportInvoices } from "../Controllers/InvoiceController";
+import { exportCreators, exportBusinesses } from "../Controllers/DataExportController";
 import {
   createSubAdmin,
   getAllSubAdmins,
@@ -234,6 +235,11 @@ export const adminRoutes = (app: Express): void => {
   app.get("/sub-admin/profile", subAdminMiddleware, errCatch(getSubAdminProfile));
   app.put("/sub-admin/profile", subAdminMiddleware, errCatch(updateSubAdminProfile));
   app.put("/sub-admin/change-password", subAdminMiddleware, errCatch(updateSubAdminPassword));
+
+  // ============================================================
+  //  DATA EXPORT (Super Admin Only)
+  // ============================================================
+  app.get("/admin/export/creators", adminMiddleware, errCatch(exportCreators));
+  app.get("/admin/export/businesses", adminMiddleware, errCatch(exportBusinesses));
  
 };
-
