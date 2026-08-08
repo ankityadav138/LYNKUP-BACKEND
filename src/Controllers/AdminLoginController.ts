@@ -723,7 +723,7 @@ export const getUserByToken = async (
 
     const userProfile = profileRes.data;
 
-    const insights: any = await fetchUserInsights(userProfile.id, finalToken, res);
+    const insights: any = await fetchUserInsights(userProfile.id, finalToken);
     const insightsData = (insights as { data?: any[] })?.data || [];
 
     const sum = (key: string) =>
