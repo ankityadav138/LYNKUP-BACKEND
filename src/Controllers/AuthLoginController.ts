@@ -35,11 +35,11 @@ export const InstagramMobileLogin = async (
       });
   }
   else {
-    // const hasPermission = await checkInsightsPermission(access_token);
-    // if (!hasPermission) {
-    //   resStatus(res, "false", "Access token does not have insights permission.");
-    //   return;
-    // }
+    const hasPermission = await checkInsightsPermission(access_token);
+    if (!hasPermission) {
+      resStatus(res, "false", "Access token does not have insights permission.");
+      return;
+    }
     try {
 
       console.log("access_token--", access_token, "user_id", req.query.user_id)
@@ -62,59 +62,60 @@ export const InstagramMobileLogin = async (
         userProfile.username = userProfile.username;
         const targetUsername = userProfile.username;
 
-        // const userInsights = await fetchUserInsights(userProfile.id, access_token);
-        // const insightsData = (userInsights as { data?: any[] })?.data || [];
+        const userInsights = await fetchUserInsights(userProfile.id, access_token);
+        console.log("userInsights==", userInsights)
+        const insightsData = (userInsights as { data?: any[] })?.data || [];
 
-        // if (!userInsights) {
-        //   return res.status(403).json({
-        //     success: false,
-        //     message: "You do not have permission to access insights data. Please ensure your account is a business or creator account with required permissions.",
-        //   });
-        // }
+        if (!userInsights) {
+          return res.status(403).json({
+            success: false,
+            message: "You do not have permission to access insights data. Please ensure your account is a business or creator account with required permissions.",
+          });
+        }
         // Function to sum last 30 days' values for each metric
-        // const sumMetric = (metricName: string): number => {
-        //   return insightsData.find((m) => m.name === metricName)?.total_value?.value || 0;
-        // };
+        const sumMetric = (metricName: string): number => {
+          return insightsData.find((m) => m.name === metricName)?.total_value?.value || 0;
+        };
 
 
-        // let reach = sumMetric("reach");
-        // let accountsEngaged = sumMetric("accounts_engaged");
-        // let views = sumMetric("views");
-        // let profileViews = sumMetric("profile_views");
-        // let contentViews = sumMetric("content_views");
-        // let engagementRate = reach > 0 ? (accountsEngaged / reach) : 0;
-        // engagementRate = parseFloat(engagementRate.toFixed(2));
+        let reach = sumMetric("reach");
+        let accountsEngaged = sumMetric("accounts_engaged");
+        let views = sumMetric("views");
+        let profileViews = sumMetric("profile_views");
+        let contentViews = sumMetric("content_views");
+        let engagementRate = reach > 0 ? (accountsEngaged / reach) : 0;
+        engagementRate = parseFloat(engagementRate.toFixed(2));
 
-        // let instagramInsights = {
-        //   reach,
-        //   accounts_engaged: accountsEngaged,
-        //   views,
-        //   profile_views: profileViews,
-        //   content_views: contentViews,
-        //   engagementRate,
-        // };
+        let instagramInsights = {
+          reach,
+          accounts_engaged: accountsEngaged,
+          views,
+          profile_views: profileViews,
+          content_views: contentViews,
+          engagementRate,
+        };
         const allFollowers = await FollowerModel.find({});
         const staticFollowers = allFollowers.map((f) => f.staticFollowers || 0);
 
         const followersCount = userProfile?.followers_count || 0;
-        //  const minRequiredFollowers = Math.max(...staticFollowers, 0);
-        const minRequiredFollowers = 0;
-        // const followersWhoEngaged = Math.round(((instagramInsights?.accounts_engaged || 0) * followersCount) / (instagramInsights?.reach || 0));
-        // const nonFollowersWhoEngaged = Math.max((instagramInsights?.accounts_engaged || 0) - followersWhoEngaged, 0);
+        const minRequiredFollowers = Math.max(...staticFollowers, 0);
+        // const minRequiredFollowers = 0;
+        const followersWhoEngaged = Math.round(((instagramInsights?.accounts_engaged || 0) * followersCount) / (instagramInsights?.reach || 0));
+        const nonFollowersWhoEngaged = Math.max((instagramInsights?.accounts_engaged || 0) - followersWhoEngaged, 0);
 
-        // let nonFollowers = Math.max(((instagramInsights?.reach || 0) - (followersCount || 0) / 100), 0);
+        let nonFollowers = Math.max(((instagramInsights?.reach || 0) - (followersCount || 0) / 100), 0);
         // Check if the user's followers meet the minimum required followers
-        // if (followersCount === minRequiredFollowers) {
-        //   const remainingFollowers = minRequiredFollowers - followersCount;
-        //   res.status(403).json({
-        //     success: false,
-        //     message: `You need ${remainingFollowers} more followers to log in.`,
-        //     required_followers: minRequiredFollowers,
-        //     current_followers: followersCount,
-        //     remaining_followers: remainingFollowers,
-        //   });
-        //   return;
-        // }
+        if (followersCount < minRequiredFollowers) {
+          const remainingFollowers = minRequiredFollowers - followersCount;
+          res.status(403).json({
+            success: false,
+            message: `You need ${remainingFollowers} more followers to log in.`,
+            required_followers: minRequiredFollowers,
+            current_followers: followersCount,
+            remaining_followers: remainingFollowers,
+          });
+          return;
+        }
 
         let user = await UserModel.findOne({ instagramId: userProfile.id });
         if (user) {
@@ -125,12 +126,12 @@ export const InstagramMobileLogin = async (
             });
           } else {
             user.instagram = userProfile;
-            // user.email = `no-email-${userProfile.id}@instagram.com`;
+            user.email = `no-email-${userProfile.id}@instagram.com`;
             user.profileImage = userProfile.profile_picture_url;
             user.accessToken = access_token;
             user.profile_status = "verified";
             user.userType = "user";
-            // user.insights = instagramInsights;
+            user.insights = instagramInsights;
             user.businessDiscovery = {
               followers_count: userProfile?.followers_count | 0,
               media_count: userProfile?.media_count | 0,
@@ -150,13 +151,13 @@ export const InstagramMobileLogin = async (
             profileImage: userProfile.profile_picture_url,
             accessToken: access_token,
             userType: "user",
-            // insights: instagramInsights,
+            insights: instagramInsights,
             businessDiscovery: {
               followers_count: userProfile?.followers_count,
               media_count: userProfile?.media_count,
-              // nonfollowers: nonFollowers | 0,
-              // followersWhoEngaged: followersWhoEngaged | 0,
-              // nonFollowersWhoEngaged: nonFollowersWhoEngaged | 0,
+              nonfollowers: nonFollowers | 0,
+              followersWhoEngaged: followersWhoEngaged | 0,
+              nonFollowersWhoEngaged: nonFollowersWhoEngaged | 0,
             }
           });
         }
