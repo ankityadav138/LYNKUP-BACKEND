@@ -324,20 +324,30 @@ export const createSubscriptionOrder = async (
       appliedCouponCode = applicableCoupon.code;
     }
 
-    // ── Free order (100% coupon) — skip Razorpay ────────────────────────────
+    // ── Free order (100% coupon) — skip Razorpay, activate immediately ──────
     if (finalPrice <= 0) {
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + selectedTier.duration);
+      const graceEndDate = new Date(endDate);
+      graceEndDate.setDate(graceEndDate.getDate() + GRACE_PERIOD_DAYS);
+
       const subscription = await SubscriptionModel.create({
         userId,
         planId,
         tier,
         duration: selectedTier.duration,
-        status: "pending",
+        status: "active",
         paymentStatus: "completed",
         amount: 0,
         baseAmount: selectedPrice,
         changeType: "new",
         currency: "INR",
         razorpayOrderId: `FREE-${Date.now()}`.slice(0, 40),
+        startDate,
+        endDate,
+        graceEndDate,
+        isInGracePeriod: false,
         ...(couponId ? {
           couponId,
           couponCode: appliedCouponCode,
@@ -351,7 +361,53 @@ export const createSubscriptionOrder = async (
           source: "web",
         },
       });
-      if (couponId) await markCouponUsed(String(couponId), String(userId));
+
+      // Activate atomically: expire old subs + update user record
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      try {
+        await SubscriptionModel.updateMany(
+          {
+            userId,
+            _id: { $ne: subscription._id },
+            status: { $in: ["active", "expiring_soon", "grace_period"] },
+          },
+          {
+            $set: {
+              status: "expired",
+              cancellationReason: "Replaced by new subscription",
+              cancellationDate: new Date(),
+            },
+          },
+          { session }
+        );
+
+        await User.findByIdAndUpdate(
+          userId,
+          {
+            currentSubscriptionId: subscription._id,
+            hasActiveSubscription: true,
+            subscriptionExpiryDate: endDate,
+          },
+          { session, new: true }
+        );
+
+        await session.commitTransaction();
+      } catch (txError) {
+        await session.abortTransaction();
+        console.error("[Subscription] Free-order transaction failed, rolling back:", txError);
+        throw txError;
+      } finally {
+        session.endSession();
+      }
+
+      // Mark coupon used only after successful activation
+      if (couponId) {
+        markCouponUsed(String(couponId), String(userId)).catch((err) =>
+          console.error("[Coupon] Failed to mark coupon used:", err)
+        );
+      }
+
       resStatusData(res, "success", "Order created successfully", {
         paymentRequired: false,
         subscriptionId: subscription._id,

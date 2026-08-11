@@ -14,6 +14,7 @@ import {
   getAutoRenewalStatus,
   handleRenewalPaymentCallback,
 } from "../Controllers/SubscriptionController";
+import { getActiveCouponForUser, validateCouponForUser } from "../Controllers/CouponController";
 import { authMiddleware, businessMiddleware } from "../Middelware/Auth";
 import { requireDocumentVerification } from "../Middelware/DocumentVerificationMiddleware";
 
@@ -21,6 +22,10 @@ const router = express.Router();
 
 // Public routes (no authentication required)
 router.get("/plans", getSubscriptionPlans);
+
+// Coupon routes (authentication required)
+router.get("/coupon/active", businessMiddleware, (req, res) => { void getActiveCouponForUser(req, res); });
+router.get("/coupon/validate", businessMiddleware, (req, res) => { void validateCouponForUser(req, res); });
 
 // Protected routes (authentication + document verification required for business users)
 router.post("/create-order", businessMiddleware, requireDocumentVerification, createSubscriptionOrder);
