@@ -736,7 +736,7 @@ export const getUserByToken = async (
     const contentViews = sum("content_views");
 
     const followersCount = userProfile.followers_count || 0;
-    const engagementRate = (reach > 0 && followersCount > 0) ? parseFloat(((reach / followersCount) * 100).toFixed(2)) : 0;
+    const engagementRate = (reach > 0 && followersCount > 0) ? parseFloat(((views / reach)).toFixed(2)) : 0;
 
     const insightsUpdate = {
       reach,
