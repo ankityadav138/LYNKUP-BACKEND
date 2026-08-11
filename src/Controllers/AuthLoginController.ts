@@ -85,10 +85,8 @@ export const InstagramMobileLogin = async (
         let contentViews = sumMetric("content_views");
         // let engagementRate = reach > 0 ? (accountsEngaged / reach) : 0;
         const followersForRate = userProfile?.followers_count || 0;
-        console.log("DEBUG followers_count=", followersForRate, "views=", views, "reach=", reach);
-        let engagementRate = (reach > 0 && followersForRate > 0) ? (views / followersForRate) : 0;
+        let engagementRate = (reach > 0 && followersForRate > 0) ? (reach / followersForRate) : 0;
         engagementRate = parseFloat(engagementRate.toFixed(2));
-        console.log("DEBUG engagementRate computed=", engagementRate);
 
         let instagramInsights = {
           reach,
