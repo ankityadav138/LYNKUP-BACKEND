@@ -735,7 +735,8 @@ export const getUserByToken = async (
     const profileViews = sum("profile_views");
     const contentViews = sum("content_views");
 
-    const engagementRate = reach > 0 ? parseFloat((accountsEngaged / reach).toFixed(2)) : 0;
+    const followersCount = userProfile.followers_count || 0;
+    const engagementRate = (reach > 0 && followersCount > 0) ? parseFloat(((views / followersCount)).toFixed(2)) : 0;
 
     const insightsUpdate = {
       reach,
@@ -745,7 +746,6 @@ export const getUserByToken = async (
       content_views: contentViews,
       engagementRate,
     };
-    const followersCount = userProfile.followers_count || 0;
     // Safely calculate to avoid NaN from division by zero
     const followersWhoEngaged = reach > 0 ? Math.round((accountsEngaged * followersCount) / reach) : 0;
     const nonFollowersWhoEngaged = Math.max(accountsEngaged - followersWhoEngaged, 0);

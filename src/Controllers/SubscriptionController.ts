@@ -319,16 +319,70 @@ export const createSubscriptionOrder = async (
     if (applicableCoupon) {
       discountPercent = applicableCoupon.discountPercent;
       discountAmount = Math.round((selectedPrice * discountPercent) / 100);
-      finalPrice = selectedPrice - discountAmount;
+      finalPrice = Math.max(0, selectedPrice - discountAmount);
       couponId = applicableCoupon._id;
       appliedCouponCode = applicableCoupon.code;
     }
 
-    // Create Razorpay order for a new subscription with 18% GST
+    // ── Free order (100% coupon) — skip Razorpay ────────────────────────────
+    if (finalPrice <= 0) {
+      const subscription = await SubscriptionModel.create({
+        userId,
+        planId,
+        tier,
+        duration: selectedTier.duration,
+        status: "pending",
+        paymentStatus: "completed",
+        amount: 0,
+        baseAmount: selectedPrice,
+        changeType: "new",
+        currency: "INR",
+        razorpayOrderId: `FREE-${Date.now()}`.slice(0, 40),
+        ...(couponId ? {
+          couponId,
+          couponCode: appliedCouponCode,
+          discountPercent,
+          discountAmount,
+          originalAmount: selectedPrice,
+        } : {}),
+        metadata: {
+          userAgent: req.get("user-agent"),
+          ipAddress: req.ip,
+          source: "web",
+        },
+      });
+      if (couponId) await markCouponUsed(String(couponId), String(userId));
+      resStatusData(res, "success", "Order created successfully", {
+        paymentRequired: false,
+        subscriptionId: subscription._id,
+        amount: 0,
+        currency: "INR",
+        userEmail: user.email,
+        coupon: applicableCoupon ? {
+          code: appliedCouponCode,
+          name: applicableCoupon.name,
+          discountPercent,
+          discountAmount,
+          originalAmount: selectedPrice,
+          finalAmount: 0,
+        } : null,
+        planDetails: {
+          name: plan.name,
+          tier: selectedTier.id,
+          duration: `${selectedTier.duration} month(s)`,
+          price: selectedPrice,
+        },
+      });
+      return;
+    }
+
+    // ── Paid order — create Razorpay order with 18% GST ────────────────────
+    // Razorpay minimum is ₹1 (100 paise). Enforce it to prevent BAD_REQUEST_ERROR.
+    const razorpayAmount = Math.max(100, Math.round(finalPrice * 1.18 * 100));
     const razorpayOrder = await razorpay.orders.create({
-      amount: Math.round(finalPrice * 1.18 * 100),
+      amount: razorpayAmount,
       currency: "INR",
-      receipt: `SUB-${Date.now()}`.slice(0, 40), // Truncate to 40 chars
+      receipt: `SUB-${Date.now()}`.slice(0, 40),
       notes: {
         userId: userId,
         planId: planId,
