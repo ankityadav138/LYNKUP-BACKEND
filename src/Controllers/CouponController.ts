@@ -159,29 +159,39 @@ export const validateCouponForUser = async (req: Request, res: Response) => {
 export const getActiveCouponForUser = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?._id || (req as any).user?.id;
+    const now = new Date();
 
-    // Find active coupon assigned to this specific business
-    let coupon = await CouponModel.findOne({
-      assignedTo: userId,
+    // Build a query that already filters out expired and used-by-this-user one_time coupons
+    const validFilter = {
       isActive: true,
+      $or: [
+        { expiryDate: null },
+        { expiryDate: { $gt: now } },
+      ],
+      // Exclude one_time coupons already used by this user
+      $nor: [
+        { usageType: "one_time", usedBy: userId },
+      ],
+    };
+
+    // 1. Prefer a coupon specifically assigned to this business
+    let coupon = await CouponModel.findOne({
+      ...validFilter,
+      assignedTo: userId,
     });
 
+    // 2. Fall back to a global coupon (assignedTo: null)
     if (!coupon) {
-      // Find global active coupon
       coupon = await CouponModel.findOne({
+        ...validFilter,
         assignedTo: null,
-        isActive: true,
       });
     }
 
-    if (coupon) {
-      if (coupon.expiryDate && new Date() > coupon.expiryDate) {
-        return resStatusData(res, "success", "No active coupon", null);
-      }
-      if (coupon.usageType === "one_time" && coupon.usedBy?.some((id) => String(id) === String(userId))) {
-        return resStatusData(res, "success", "No active coupon", null);
-      }
+    // Prevent browser / CDN caching so the coupon state is always fresh
+    res.setHeader("Cache-Control", "no-store");
 
+    if (coupon) {
       return resStatusData(res, "success", "Active coupon fetched", {
         code: coupon.code,
         name: coupon.name,
@@ -203,34 +213,40 @@ export const getActiveCouponForUser = async (req: Request, res: Response) => {
  */
 export const findApplicableCoupon = async (userId: string, couponCode?: string) => {
   try {
-    // If a specific code is provided, look for that
+    const now = new Date();
+
+    // If a specific code is provided, validate that specific coupon
     if (couponCode) {
       const coupon = await CouponModel.findOne({
         code: couponCode.toUpperCase().trim(),
         isActive: true,
       });
       if (!coupon) return null;
-      if (coupon.expiryDate && new Date() > coupon.expiryDate) return null;
+      if (coupon.expiryDate && now > coupon.expiryDate) return null;
       if (coupon.assignedTo && String(coupon.assignedTo) !== String(userId)) return null;
       if (coupon.usageType === "one_time" && coupon.usedBy?.some((id) => String(id) === String(userId))) return null;
       return coupon;
     }
 
-    // Auto-lookup: find any active coupon assigned to this specific business
-    const assignedCoupon = await CouponModel.findOne({
-      assignedTo: userId,
+    // Auto-lookup: find the first valid coupon assigned to this specific business
+    // (filters out expired and already-used-by-this-user coupons at DB level)
+    const validFilter = {
       isActive: true,
+      $or: [
+        { expiryDate: null },
+        { expiryDate: { $gt: now } },
+      ],
+      $nor: [
+        { usageType: "one_time", usedBy: userId },
+      ],
+    };
+
+    const assignedCoupon = await CouponModel.findOne({
+      ...validFilter,
+      assignedTo: userId,
     });
 
-    if (assignedCoupon) {
-      if (assignedCoupon.expiryDate && new Date() > assignedCoupon.expiryDate) return null;
-      if (
-        assignedCoupon.usageType === "one_time" &&
-        assignedCoupon.usedBy?.some((id) => String(id) === String(userId))
-      )
-        return null;
-      return assignedCoupon;
-    }
+    if (assignedCoupon) return assignedCoupon;
 
     return null;
   } catch {
