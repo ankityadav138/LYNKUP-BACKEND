@@ -160,7 +160,7 @@ export const businessSignup = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const { firstName, lastName, phone, name, email, address, password, location } =
+  const { firstName, lastName, phone, name, email, address, password, location, gstNumber } =
     req.body;
 
   const files = req.files;
@@ -226,6 +226,7 @@ export const businessSignup = async (
         lastName,
         phone,
         address,
+        gstNumber,
         userType: "business",
         location: {
           type: parsedLocation?.type || "Point",

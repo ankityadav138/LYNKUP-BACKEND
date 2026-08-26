@@ -4,38 +4,39 @@ export interface UserData extends Document {
   firstName?: string;
   lastName?: string;
   email?: string;
-  password: string; 
+  password: string;
   number?: string;
-  gender?:string;
-  blocked?:Boolean;
-  strikeCount?:number;
+  gender?: string;
+  blocked?: Boolean;
+  strikeCount?: number;
   playerId: string[];
   profileImage?: string;
   appId?: string[];
-  document?:string[];
-  documentVerified?:Boolean;
+  document?: string[];
+  documentVerified?: Boolean;
   userType?: "admin" | "user" | "business" | "sub_admin";
   // Sub-admin specific fields
   subAdminRole?: string; // e.g., "Marketing", "Finance", "Support"
   isActive?: boolean; // for activate/deactivate (sub-admins)
   permissions?: {
-    dashboard?:   { view: boolean; edit: boolean };
-    offers?:      { view: boolean; edit: boolean };
-    users?:       { view: boolean; edit: boolean };
-    business?:    { view: boolean; edit: boolean };
-    requests?:    { view: boolean; edit: boolean };
-    feedback?:    { view: boolean; edit: boolean };
-    payouts?:     { view: boolean; edit: boolean };
+    dashboard?: { view: boolean; edit: boolean };
+    offers?: { view: boolean; edit: boolean };
+    users?: { view: boolean; edit: boolean };
+    business?: { view: boolean; edit: boolean };
+    requests?: { view: boolean; edit: boolean };
+    feedback?: { view: boolean; edit: boolean };
+    payouts?: { view: boolean; edit: boolean };
     withdrawals?: { view: boolean; edit: boolean };
-    invoices?:    { view: boolean; edit: boolean };
-    settings?:    { view: boolean; edit: boolean };
-    wallet?:      { view: boolean; edit: boolean };
-    earnings?:    { view: boolean; edit: boolean };
-    sub_admins?:  { view: boolean; edit: boolean };
+    invoices?: { view: boolean; edit: boolean };
+    settings?: { view: boolean; edit: boolean };
+    wallet?: { view: boolean; edit: boolean };
+    earnings?: { view: boolean; edit: boolean };
+    sub_admins?: { view: boolean; edit: boolean };
   };
   restro_type: "Luxury" | "ordinary";
   dietary_prefernces?: string[];
-  allergy?:string;
+  allergy?: string;
+  creator_type?: string;
   location?: any;
   manual_location?: {
     city?: string;
@@ -51,36 +52,36 @@ export interface UserData extends Document {
     booking_update: boolean;
     new_offer: boolean;
   };
-  profile_status?: "under_review" | "rejected" |"verified";
-  profile_step?:Boolean;
+  profile_status?: "under_review" | "rejected" | "verified";
+  profile_step?: Boolean;
   business_type?: number;
-  phone?:Number;
-  staticFollowers?:Number;
+  phone?: Number;
+  staticFollowers?: Number;
   access_token?: string;
   name?: string;
-  otp?:string;
-  isVerified?:Boolean;
-  otpExpires:Date;
+  otp?: string;
+  isVerified?: Boolean;
+  otpExpires: Date;
   facebookId?: string;
   // Subscription fields
   currentSubscriptionId?: any; // Reference to active Subscription document
   hasActiveSubscription?: boolean; // Denormalized for faster queries
   subscriptionExpiryDate?: Date; // Denormalized for faster queries
   instagramId?: string;
-  city?:string;
-  isDeleted?:Boolean;
+  city?: string;
+  isDeleted?: Boolean;
   instagram?: {
     id: string;
     username: string;
-    instagramlink:string;
+    instagramlink: string;
   } | null;
-  businessDiscovery:{
-    followers_count:Number;
-    media_count:Number;
+  businessDiscovery: {
+    followers_count: Number;
+    media_count: Number;
     nonfollowers: Number;
     nonFollowersWhoEngaged: Number;
-    followersWhoEngaged:Number;
-  }| null;
+    followersWhoEngaged: Number;
+  } | null;
   insights?: {
     reach?: number;
     profile_views?: number;
@@ -88,13 +89,14 @@ export interface UserData extends Document {
     content_views?: number;
     accounts_engaged?: number;
     engagementRate?: number;
-  }|null;
-  review:Boolean;
-  address?:string;
-  accessToken?:string;
-  upi_Id?:string;
-  lastTokenRefresh:Date;
-  passwordChangedAt:Date;
+  } | null;
+  review: Boolean;
+  address?: string;
+  gstNumber?: string;
+  accessToken?: string;
+  upi_Id?: string;
+  lastTokenRefresh: Date;
+  passwordChangedAt: Date;
   manualPay?: {
     amount: number;
     method: string;
@@ -126,35 +128,39 @@ const userSchema = new Schema<UserData>(
       type: String,
       required: false,
     },
-    address:{
-      type:String,
-      required:false,
+    address: {
+      type: String,
+      required: false,
+    },
+    gstNumber: {
+      type: String,
+      required: false,
     },
     document: [
       {
         type: String,
       },
     ],
-    documentVerified:{
-      type:Boolean,
-      default:false,
+    documentVerified: {
+      type: Boolean,
+      default: false,
     },
-    upi_Id:{
-      type:String,
-      required:false,
+    upi_Id: {
+      type: String,
+      required: false,
     },
     playerId: { type: [String], default: [] },
-    phone:{
-      type:String,
-      required:false,
+    phone: {
+      type: String,
+      required: false,
     },
     password: {
       type: String,
       required: false,
     },
-    city:{
-      type:String,
-      required:false,
+    city: {
+      type: String,
+      required: false,
     },
     number: {
       type: String,
@@ -183,19 +189,19 @@ const userSchema = new Schema<UserData>(
     },
     permissions: {
       type: {
-        dashboard:   { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
-        offers:      { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
-        users:       { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
-        business:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
-        requests:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
-        feedback:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
-        payouts:     { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        dashboard: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        offers: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        users: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        business: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        requests: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        feedback: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        payouts: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
         withdrawals: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
-        invoices:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
-        settings:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
-        wallet:      { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
-        earnings:    { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
-        sub_admins:  { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        invoices: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        settings: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        wallet: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        earnings: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
+        sub_admins: { view: { type: Boolean, default: false }, edit: { type: Boolean, default: false } },
       },
       required: false,
       default: null,
@@ -204,9 +210,13 @@ const userSchema = new Schema<UserData>(
       type: [String],
       required: false,
     },
-    allergy:{
-      type:String,
-      required:false,
+    allergy: {
+      type: String,
+      required: false,
+    },
+    creator_type: {
+      type: String,
+      required: false,
     },
     location: {
       type: {
@@ -244,12 +254,12 @@ const userSchema = new Schema<UserData>(
     },
     profile_status: {
       type: String,
-      enum: ["under_review", "rejected","verified"],
-      default:"under_review",
+      enum: ["under_review", "rejected", "verified"],
+      default: "under_review",
     },
     profile_step: {
       type: Boolean,
-      default:true,
+      default: true,
       required: false,
     },
     business_type: {
@@ -309,7 +319,7 @@ const userSchema = new Schema<UserData>(
       type: {
         id: { type: String },
         username: { type: String },
-        instagramlink:{type:String},
+        instagramlink: { type: String },
       },
       default: null,
     },
@@ -324,13 +334,13 @@ const userSchema = new Schema<UserData>(
       },
       default: {},
     },
-    businessDiscovery:{
+    businessDiscovery: {
       type: {
-        followers_count: { type: Number,default:0 },
-        media_count: { type: Number,default:0 },
-        nonfollowers:{ type:Number,default:0 },
-        followersWhoEngaged:{type:Number,default:0},
-        nonFollowersWhoEngaged:{type:Number,default:0},
+        followers_count: { type: Number, default: 0 },
+        media_count: { type: Number, default: 0 },
+        nonfollowers: { type: Number, default: 0 },
+        followersWhoEngaged: { type: Number, default: 0 },
+        nonFollowersWhoEngaged: { type: Number, default: 0 },
       },
       default: null,
     },
@@ -340,27 +350,27 @@ const userSchema = new Schema<UserData>(
     },
     blocked: {
       type: Boolean,
-      default: false, 
+      default: false,
     },
-    isDeleted:{
-      type:Boolean,
-      default:false
+    isDeleted: {
+      type: Boolean,
+      default: false
     },
-    staticFollowers:{
-      type:Number,
-      default:0,
+    staticFollowers: {
+      type: Number,
+      default: 0,
     },
     lastTokenRefresh: {
       type: Date,
       default: null,
     },
-     passwordChangedAt: {
+    passwordChangedAt: {
       type: Date,
       default: null,
     },
-    review:{
-      type:Boolean,
-      default:false
+    review: {
+      type: Boolean,
+      default: false
     },
     manualPay: {
       type: {

@@ -15,7 +15,7 @@ export const editProfile = async (req: Request | any, res: Response, next: NextF
   const userId = req.user?._id;
   console.log("req.body-->", req.body);
   try {
-    const { firstName, lastName, dietary_prefernces, email, allergy, app_notification, email_notification, upi_Id } = req.body;
+    const { firstName, lastName, dietary_prefernces, email, allergy, creator_type, app_notification, email_notification, upi_Id } = req.body;
 
     const user = await UserModel.findById(userId);
     if (!user) {
@@ -44,6 +44,7 @@ export const editProfile = async (req: Request | any, res: Response, next: NextF
     if (lastName) updateData.lastName = lastName;
     if (dietary_prefernces) updateData.dietary_prefernces = dietary_prefernces;
     if (allergy) updateData.allergy = allergy;
+    if (creator_type) updateData.creator_type = creator_type;
     if (app_notification) updateData.app_notification = app_notification;
     if (email_notification) updateData.email_notification = email_notification;
     if (upi_Id) updateData.upi_Id = upi_Id;
