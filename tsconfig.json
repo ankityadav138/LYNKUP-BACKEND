@@ -11,6 +11,10 @@
     "resolveJsonModule": true,
     "sourceMap": true
   },
+  "ts-node": {
+    "transpileOnly": true,
+    "files": true
+  },
   "include": [
     "index.ts",
     "src/**/*.ts"

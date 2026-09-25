@@ -7,6 +7,9 @@ const APP_SECRET = process.env.INSTAGRAM_APP_SECRET || "76a8b193787892f6bf2459ab
 const REDIRECT_URI =
     "https://lynkupapi.lynkup.co.in/auth/instagram/callback";
 
+// const REDIRECT_URI = "https://unprofane-fluxionally-annalise.ngrok-free.dev/auth/instagram/callback"
+
+
 interface InstagramTokenResponse {
     access_token: string;
     user_id: string;
@@ -45,15 +48,44 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
         console.log("accesstokenn==>", accessToken);
         const userId: string = tokenResponse.data.user_id;
 
-        if (state === 'android') {
-            res.redirect(
-                `com.lynkupapplication.android://instagram-auth?access_token=${accessToken}&user_id=${userId}`
+        // if (state === 'android') {
+        //     res.redirect(
+        //         `com.lynkupapplication.android://instagram-auth?access_token=${accessToken}&user_id=${userId}`
+        //     );
+        // } else {
+        //     res.redirect(`com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
+        //     // Use 'myapp' scheme — this is the Expo canonical scheme registered in CFBundleURLSchemes
+        //     // 'com.ios.socialme' is the bundle identifier, not a URL scheme, so iOS routes it to Instagram
+        //     // res.redirect(`myapp://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
+        // }
+
+        if (state === "android") {
+            const redirectUrl = new URL("myapp://instagram-auth");
+
+            redirectUrl.searchParams.set(
+                "access_token",
+                accessToken
             );
-        } else {
-            res.redirect(`com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
-            // Use 'myapp' scheme — this is the Expo canonical scheme registered in CFBundleURLSchemes
-            // 'com.ios.socialme' is the bundle identifier, not a URL scheme, so iOS routes it to Instagram
-            // res.redirect(`myapp://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
+
+            redirectUrl.searchParams.set(
+                "user_id",
+                userId
+            );
+
+            console.log(
+                "Android redirect:",
+                redirectUrl.toString()
+            );
+
+            res.redirect(302, redirectUrl.toString());
+            return;
+        }
+
+        if (state === "ios") {
+            res.redirect(
+                `com.ios.socialme://instagram-auth?access_token=${encodeURIComponent(accessToken)}&user_id=${encodeURIComponent(userId)}`
+            );
+            return;
         }
 
         // res.redirect(`com.ios.socialme://instagram-auth?access_token=${accessToken}&user_id=${userId}`)
