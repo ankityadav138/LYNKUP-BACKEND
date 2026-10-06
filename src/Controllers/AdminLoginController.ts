@@ -1162,10 +1162,19 @@ export const deleteBusiness = async (
   req: Request | any,
   res: Response
 ): Promise<void> => {
-  const { businessId } = req.query;
-  if (!businessId) {
-    resStatus(res, "false", "business ID is required.");
-  } else {
+  try {
+    const businessId =
+      req.query.businessId ||
+      req.body.businessId ||
+      req.body.userId ||
+      req.query.userId ||
+      req.params.businessId;
+
+    if (!businessId) {
+      resStatus(res, "false", "business ID is required.");
+      return;
+    }
+
     const updatedUser = await UserModel.findByIdAndUpdate(
       businessId,
       {
@@ -1173,12 +1182,24 @@ export const deleteBusiness = async (
       },
       { new: true }
     );
+
     if (!updatedUser) {
       resStatus(res, "false", "business not found.");
+      return;
     }
+
+    await OfferModel.updateMany(
+      { $or: [{ userId: businessId }, { business_id: businessId }] },
+      { $set: { isdeleted: true } }
+    );
+
     resStatus(res, "success", "business deleted successfully");
+  } catch (error: any) {
+    console.error("Error in deleteBusiness:", error);
+    resStatus(res, "false", error?.message || "Failed to delete business");
   }
 };
+
 export const contentFeedback = async (
   req: Request | any,
   res: Response

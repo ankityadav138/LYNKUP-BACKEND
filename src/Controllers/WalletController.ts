@@ -2,8 +2,10 @@ import { Request, Response } from "express";
 import Wallet from "../Models/Wallet";
 import WalletTransaction from "../Models/WalletTransaction";
 import UserModel from "../Models/UserModel";
+import OfferModel from "../Models/offerModal";
 import { resStatusData } from "../Responses/Response";
 import { invoiceService } from "../Services/InvoiceService";
+import { processAllWalletReleases, releaseLockedAmountForOffer } from "../Services/WalletReleaseService";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 
@@ -51,6 +53,9 @@ export const getOrCreateWallet = async (req: Request, res: Response) => {
 export const getWalletBalance = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user._id;
+
+    // Check & release any expired or 1-month-completed offers
+    await processAllWalletReleases({ businessId: userId });
 
     // Get or create wallet if it doesn't exist
     let wallet = await Wallet.findOne({ user_id: userId });
@@ -276,6 +281,9 @@ export const getAdminBusinessWalletTransactions = async (req: Request, res: Resp
     const limit = parseInt(req.query.limit as string) || 20;
     const skip = (page - 1) * limit;
 
+    // Automatically check & release any ended or 1-month-completed offers for this business
+    await processAllWalletReleases({ businessId: user_id });
+
     const transactions = await WalletTransaction.find({ user_id })
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -283,8 +291,12 @@ export const getAdminBusinessWalletTransactions = async (req: Request, res: Resp
 
     const total = await WalletTransaction.countDocuments({ user_id });
 
+    // Fetch the updated wallet object so the UI can display live available/locked balances
+    const wallet = await Wallet.findOne({ user_id });
+
     return resStatusData(res, "success", "Transactions fetched successfully", {
       transactions,
+      wallet,
       pagination: {
         current_page: page,
         total_pages: Math.ceil(total / limit),
@@ -294,6 +306,104 @@ export const getAdminBusinessWalletTransactions = async (req: Request, res: Resp
     });
   } catch (error: any) {
     console.error("Admin get business wallet transactions error:", error);
+    return resStatusData(res, "error", error.message, null);
+  }
+};
+
+/**
+ * Admin: Trigger release of locked wallet funds (for ended offers or 1-month completed)
+ * POST /admin/wallet/process-releases
+ * Body: { businessId?: string, offerId?: string }
+ */
+export const adminProcessWalletReleases = async (req: Request, res: Response) => {
+  try {
+    const businessId = req.body?.businessId || req.query?.businessId;
+    const offerId = req.body?.offerId || req.query?.offerId;
+
+    const result = await processAllWalletReleases({
+      businessId: businessId ? String(businessId) : undefined,
+      offerId: offerId ? String(offerId) : undefined,
+    });
+
+    // Also get updated wallet if businessId was provided
+    let updatedWallet = null;
+    if (businessId) {
+      updatedWallet = await Wallet.findOne({ user_id: businessId });
+    }
+
+    return resStatusData(res, "success", "Wallet releases processed successfully", {
+      ...result,
+      wallet: updatedWallet,
+    });
+  } catch (error: any) {
+    console.error("Admin process wallet releases error:", error);
+    return resStatusData(res, "error", error.message, null);
+  }
+};
+
+/**
+ * Admin / Testing: Simulate offer date or status to test release scenarios
+ * POST /admin/wallet/test-simulate-offer
+ * Body: {
+ *   offerId: string,
+ *   scenario: "ended" | "one_month_completed"
+ * }
+ */
+export const adminSimulateOfferDate = async (req: Request, res: Response) => {
+  try {
+    const { offerId, scenario } = req.body;
+    if (!offerId) {
+      return resStatusData(res, "error", "offerId is required", null);
+    }
+
+    const offer = await OfferModel.findById(offerId);
+    if (!offer) {
+      return resStatusData(res, "error", "Offer not found", null);
+    }
+
+    const now = new Date();
+    if (scenario === "ended") {
+      // Simulate offer end date yesterday
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      offer.ending_type = "days";
+      offer.valid = {
+        start: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+        end: yesterday,
+      };
+      offer.status = "ended";
+      await offer.save();
+    } else if (scenario === "one_month_completed") {
+      // Simulate created 31 days ago and withdrawal eligibility in the past
+      const past31Days = new Date(now.getTime() - 31 * 24 * 60 * 60 * 1000);
+      offer.createdAt = past31Days;
+      offer.withdrawal_eligibility_date = past31Days;
+      await offer.save();
+    } else {
+      return resStatusData(
+        res,
+        "error",
+        "scenario must be 'ended' or 'one_month_completed'",
+        null
+      );
+    }
+
+    // Now process the release!
+    const releaseResult = await processAllWalletReleases({
+      businessId: offer.business_id,
+      offerId: offer._id,
+    });
+
+    const updatedWallet = await Wallet.findOne({ user_id: offer.business_id });
+    const updatedOffer = await OfferModel.findById(offerId);
+
+    return resStatusData(res, "success", `Simulated '${scenario}' and processed release`, {
+      scenario,
+      releaseResult,
+      offer: updatedOffer,
+      wallet: updatedWallet,
+    });
+  } catch (error: any) {
+    console.error("Admin simulate offer date error:", error);
     return resStatusData(res, "error", error.message, null);
   }
 };

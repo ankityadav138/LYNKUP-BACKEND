@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import mongoose from "mongoose";
 import OfferModel from "../Models/offerModal";
+import { processAllWalletReleases } from "../Services/WalletReleaseService";
 
 export const updateOfferStatus = async () => {
   try {
@@ -28,6 +29,13 @@ export const updateOfferStatus = async () => {
     console.log(`[Cron] Updated ${updatedByDays.modifiedCount} offers to 'ended' by 'days'`);
     console.log(`[Cron] Updated ${updatedToLive.modifiedCount} offers to 'live'`);
 
+    // Automatically release locked wallet funds for all ended or 1-month-completed offers
+    const releaseResults = await processAllWalletReleases();
+    if (releaseResults.totalReleased > 0) {
+      console.log(
+        `[Cron] ✓ Automatically released locked funds for ${releaseResults.totalReleased} offers (Total ₹${releaseResults.totalAmountUnlocked.toLocaleString("en-IN")})`
+      );
+    }
   } catch (error) {
     console.error("[Cron] Error updating offers:", error);
   }
@@ -55,6 +63,14 @@ export const markOffersEligibleForWithdrawal = async () => {
     console.log(
       `[Cron] Marked ${eligibleOffers.modifiedCount} offers as eligible for withdrawal`
     );
+
+    // Release locked balance to available balance for 30+ days old offers
+    const releaseResults = await processAllWalletReleases();
+    if (releaseResults.totalReleased > 0) {
+      console.log(
+        `[Cron] ✓ Released locked funds for ${releaseResults.totalReleased} 30+ day offers (Total ₹${releaseResults.totalAmountUnlocked.toLocaleString("en-IN")})`
+      );
+    }
   } catch (error) {
     console.error("[Cron] Error marking offers eligible for withdrawal:", error);
   }

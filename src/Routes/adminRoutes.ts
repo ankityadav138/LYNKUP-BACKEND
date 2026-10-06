@@ -23,7 +23,7 @@ import {
   downloadPayoutInvoicePDF,
 } from "../Controllers/AdminPayoutController";
 import { recordEarning, getUserEarnings } from '../Controllers/EarningController';
-import { getAdminBusinessWalletTransactions, adminDeductWallet } from '../Controllers/WalletController';
+import { getAdminBusinessWalletTransactions, adminDeductWallet, adminProcessWalletReleases, adminSimulateOfferDate } from '../Controllers/WalletController';
 import { createCoupon, getAllCoupons, toggleCouponStatus, deleteCoupon } from '../Controllers/CouponController';
 import { triggerWithdrawalEligibilityUpdate } from "../Cron/SubscriptionCron";
 import { getAllInvoices, getInvoiceById, getInvoicesByUser, exportInvoices } from "../Controllers/InvoiceController";
@@ -93,6 +93,9 @@ export const adminRoutes = (app: Express): void => {
   app.get("/getAllBookings", businessMiddleware, errCatch(getAllBookings));
   app.get("/getfollower", businessMiddleware, errCatch(getAllFollower));
   app.post("/deleteBusiness", adminMiddleware, errCatch(deleteBusiness));
+  app.post("/admin/deleteBusiness", adminMiddleware, errCatch(deleteBusiness));
+  app.delete("/deleteBusiness", adminMiddleware, errCatch(deleteBusiness));
+  app.delete("/admin/deleteBusiness", adminMiddleware, errCatch(deleteBusiness));
   app.post("/deleteBusinessOffer", businessMiddleware, errCatch(permanentlyDeletebusiness));
   app.post("/superadmin/strike", adminMiddleware, errCatch(giveStrikeUser));
   app.post("/superadmin/contentStatus", businessMiddleware, errCatch(contentStatus));
@@ -121,6 +124,8 @@ export const adminRoutes = (app: Express): void => {
   app.get("/admin/analytics/wallets", adminMiddleware, errCatch(getWalletMonitoring));
   app.get("/admin/wallet/transactions/:user_id", adminMiddleware, errCatch(getAdminBusinessWalletTransactions));
   app.post("/admin/wallet/deduct/:user_id", adminMiddleware, errCatch(adminDeductWallet));
+  app.post("/admin/wallet/process-releases", adminMiddleware, errCatch(adminProcessWalletReleases));
+  app.post("/admin/wallet/test-simulate-offer", adminMiddleware, errCatch(adminSimulateOfferDate));
   app.get("/admin/analytics/creators", adminMiddleware, errCatch(getCreatorAnalytics));
   app.get("/admin/analytics/businesses", adminMiddleware, errCatch(getBusinessAnalytics));
 

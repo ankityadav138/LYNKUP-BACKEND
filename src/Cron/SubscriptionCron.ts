@@ -7,6 +7,7 @@ import OfferModel from "../Models/offerModal";
 import { invoiceService } from "../Services/InvoiceService";
 import { sendNotification } from "../Controllers/NotificationController";
 import { subscriptionNotificationService } from "../Services/SubscriptionNotificationService";
+import { processAllWalletReleases } from "../Services/WalletReleaseService";
 
 // Grace period in days
 const GRACE_PERIOD_DAYS = 3;
@@ -378,7 +379,15 @@ export const updateWithdrawalEligibility = async () => {
       }
     }
 
-    return { count: result.modifiedCount, offers: eligibleOffers };
+    // Release locked balance to available balance for 30+ days old offers
+    const releaseResults = await processAllWalletReleases();
+    if (releaseResults.totalReleased > 0) {
+      console.log(
+        `[Withdrawal Cron] ✓ Released locked funds for ${releaseResults.totalReleased} 30+ day offers (Total ₹${releaseResults.totalAmountUnlocked.toLocaleString("en-IN")})`
+      );
+    }
+
+    return { count: result.modifiedCount, offers: eligibleOffers, releaseResults };
   } catch (error) {
     console.error("[Withdrawal Cron] Error updating withdrawal eligibility:", error);
     throw error;

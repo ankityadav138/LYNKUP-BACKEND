@@ -2003,6 +2003,7 @@ import { sendNotification } from "./NotificationController";
 import Wallet from "../Models/Wallet";
 import WalletTransaction from "../Models/WalletTransaction";
 import { invoiceService } from "../Services/InvoiceService";
+import { releaseLockedAmountForOffer } from "../Services/WalletReleaseService";
 
 const MINIMUM_OFFER_AMOUNT = 20000;
 const PLATFORM_COMMISSION_RATE = 0.20; // 20% platform commission on paid collaborations
@@ -3494,6 +3495,14 @@ export const editOffer = async (
       return;
     }
     else {
+      if (
+        updatedOffer.status === "ended" ||
+        (updatedOffer.ending_type === "days" &&
+          updatedOffer.valid?.end &&
+          new Date(updatedOffer.valid.end) < new Date())
+      ) {
+        await releaseLockedAmountForOffer(updatedOffer, "ended");
+      }
       resStatusData(res, "success", "Offer updated successfully", updatedOffer);
     }
   }
@@ -3602,6 +3611,14 @@ export const editOfferByBusiness = async (
       return;
     }
     else {
+      if (
+        updatedOffer.status === "ended" ||
+        (updatedOffer.ending_type === "days" &&
+          updatedOffer.valid?.end &&
+          new Date(updatedOffer.valid.end) < new Date())
+      ) {
+        await releaseLockedAmountForOffer(updatedOffer, "ended");
+      }
       resStatusData(res, "success", "Offer updated successfully", updatedOffer);
     }
   }
@@ -3631,43 +3648,8 @@ export const deleteOffer = async (
     // Mark the offer as deleted
     offer.isdeleted = true;
 
-    // Unlock wallet balance for milestone and paid offers
-    if ((offer.collaboration_type === "milestone" || offer.collaboration_type === "paid") && offer.business_id) {
-      // Amount to unlock: use locked_amount if present, else fallback
-      const amountToUnlock = offer.locked_amount !== undefined && offer.locked_amount > 0
-        ? offer.locked_amount
-        : (offer.collaboration_type === "paid" ? (20000 + (offer.original_fixed_amount || offer.fixed_amount || 0)) : 20000);
-
-      if (amountToUnlock > 0) {
-        const wallet = await Wallet.findOne({ user_id: offer.business_id });
-        if (wallet && wallet.locked_balance > 0) {
-          // Safeguard: do not unlock more than what's locked
-          const actualUnlockAmount = Math.min(wallet.locked_balance, amountToUnlock);
-          if (actualUnlockAmount > 0) {
-            await wallet.unlockAmount(actualUnlockAmount);
-
-            // Create unlock transaction
-            await WalletTransaction.create({
-              wallet_id: wallet._id,
-              user_id: offer.business_id,
-              type: "unlock",
-              amount: actualUnlockAmount,
-              status: "completed",
-              description: `Refund of ₹${actualUnlockAmount.toLocaleString("en-IN")} locked security deposit/payment for deleted offer: ${offer.name || ""}`,
-              reference_type: "offer",
-              reference_id: offer._id,
-              balance_before: wallet.available_balance - actualUnlockAmount,
-              balance_after: wallet.available_balance,
-            });
-            console.log(`✓ Refunded locked amount of ₹${actualUnlockAmount} to business ${offer.business_id} for deleted offer ${offer._id}`);
-          }
-        }
-      }
-      // Reset locked amount since it has been refunded
-      offer.locked_amount = 0;
-    }
-
-    await offer.save();
+    // Release locked security deposit/payment for deleted offer
+    await releaseLockedAmountForOffer(offer, "deleted");
 
     resStatusData(res, "success", "Offer deleted successfully", offer);
   } catch (error: any) {
@@ -3675,6 +3657,7 @@ export const deleteOffer = async (
     resStatus(res, "false", error.message || "Failed to delete offer");
   }
 };
+
 export const showOfferByID = async (
   req: Request | any,
   res: Response
