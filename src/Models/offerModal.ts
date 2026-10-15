@@ -36,6 +36,7 @@ interface OfferInterface extends Document {
   isdeleted: boolean;
   max_booking: number;
   min_reach: number;
+  engagement_rate?: number;
   Booked: string[];
   ending_type: "days" | "booking";
   status: "live" | "paused" | "ended";
@@ -183,6 +184,10 @@ const OfferSchema = new Schema<OfferInterface>(
       default: 1,
     },
     min_reach: {
+      type: Number,
+      default: 0,
+    },
+    engagement_rate: {
       type: Number,
       default: 0,
     },

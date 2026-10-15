@@ -2033,6 +2033,7 @@ export const createOffer = async (
     content_guidelines,
     ending_type,
     creator_requirement,
+    engagement_rate,
   } = req.body;
   const files = req.files;
   const mediaFiles = files ? files.map((file: any) => file.location) : [];
@@ -2077,7 +2078,7 @@ export const createOffer = async (
     const offer = await OfferModel.create({
       adminId,
       name,
-      business_id,
+      business_id: business_id ? new mongoose.Types.ObjectId(business_id) : undefined,
       instagram_reel,
       timeId,
       tags,
@@ -2100,6 +2101,7 @@ export const createOffer = async (
       offDays: typeof offDays === "string" ? JSON.parse(offDays) : offDays,
       max_booking,
       min_reach,
+      engagement_rate: engagement_rate ? Number(engagement_rate) : 0,
       valid: {
         start: startDate,
         end: endDate,
@@ -2111,7 +2113,7 @@ export const createOffer = async (
     const offer = await OfferModel.create({
       adminId,
       name,
-      business_id,
+      business_id: business_id ? new mongoose.Types.ObjectId(business_id) : undefined,
       instagram_reel,
       timeId,
       tags,
@@ -2134,6 +2136,7 @@ export const createOffer = async (
       max_booking,
       min_follower,
       min_reach,
+      engagement_rate: engagement_rate ? Number(engagement_rate) : 0,
       ending_type,
     });
     resStatusData(res, "success", "Offer created successfully", offer);
@@ -2144,7 +2147,6 @@ export const createOfferByBusiness = async (
   res: Response
 ): Promise<void> => {
 
-  const business_id = req.user._id;
   const {
     name,
     details,
@@ -2156,7 +2158,7 @@ export const createOfferByBusiness = async (
     // restro_type,
     creator_requirement,
     valid,
-    // business_id,
+    business_id: req_business_id,
     instagram_reel,
     timeId,
     tags,
@@ -2168,8 +2170,15 @@ export const createOfferByBusiness = async (
     ending_type,
     collaboration_type = "milestone",
     fixed_amount,
+    engagement_rate,
   } = req.body;
 
+  const targetBusinessId = (req_business_id && typeof req_business_id === "string" && req_business_id.trim() !== "")
+    ? req_business_id.trim()
+    : req.user._id;
+
+  const business_id = new mongoose.Types.ObjectId(targetBusinessId);
+  const adminId = req.user.userType === "admin" ? req.user._id : undefined;
 
   // Get wallet info from middleware (balance already checked)
   const walletInfo = req.walletInfo;
@@ -2181,14 +2190,15 @@ export const createOfferByBusiness = async (
     walletId: wallet?._id
   });
 
-  wallet = await Wallet.findOne({ user_id: business_id });
+  const walletUserId = req.user.userType === "admin" ? targetBusinessId : req.user._id;
+  wallet = await Wallet.findOne({ user_id: walletUserId });
   console.log("Latest Wallet data,", wallet)
 
   // Create wallet if doesn't exist
   if (!wallet) {
     console.log("🆕 Creating new wallet for user");
     wallet = await Wallet.create({
-      user_id: business_id,
+      user_id: walletUserId,
       total_balance: 0,
       locked_balance: 0,
       available_balance: 0,
@@ -2334,7 +2344,7 @@ export const createOfferByBusiness = async (
       withdrawalDate.setDate(withdrawalDate.getDate() + 30);
 
       const offer = await OfferModel.create({
-        // adminId,
+        adminId,
         name,
         business_id,
         instagram_reel,
@@ -2359,6 +2369,7 @@ export const createOfferByBusiness = async (
         offDays: typeof offDays === "string" ? JSON.parse(offDays) : offDays,
         max_booking,
         min_reach,
+        engagement_rate: engagement_rate ? Number(engagement_rate) : 0,
         valid: {
           start: startDate,
           end: endDate,
@@ -2441,7 +2452,7 @@ export const createOfferByBusiness = async (
       withdrawalDate.setDate(withdrawalDate.getDate() + 30);
 
       const offer = await OfferModel.create({
-        // adminId,
+        adminId,
         name,
         business_id,
         instagram_reel,
@@ -2466,6 +2477,7 @@ export const createOfferByBusiness = async (
         max_booking,
         min_follower,
         min_reach,
+        engagement_rate: engagement_rate ? Number(engagement_rate) : 0,
         ending_type,
         collaboration_type: collaboration_type || "milestone",
         fixed_amount: netFixedAmount,               // post-commission (₹850 on ₹1000) — shown to all
@@ -2614,6 +2626,7 @@ export const showOfferAdmin = async (
         $project: {
           _id: 1,
           name: 1,
+          business_id: 1,
           offer_type: 1,
           timeId: 1,
           media: 1,
@@ -2635,9 +2648,10 @@ export const showOfferAdmin = async (
           ending_type: 1,
           status: 1,
           min_reach: 1,
+          min_follower: 1,
+          engagement_rate: 1,
           valid: 1,
           restro_type: 1,
-          min_follower: 1,
           collaboration_type: 1,
           fixed_amount: 1,
           original_fixed_amount: 1,
@@ -3245,12 +3259,14 @@ export const showOfferUser = async (
         $project: {
           _id: 1,
           name: 1,
+          business_id: 1,
           media: 1,
           offer_type: 1,
           offering: 1,
           details: 1,
           min_follower: 1,
           min_reach: 1,
+          engagement_rate: 1,
           offDays: 1,
           valid: 1,
           address: 1,
@@ -3414,6 +3430,7 @@ export const editOffer = async (
     status,
     collaboration_type,
     fixed_amount,
+    engagement_rate,
   } = req.body;
 
   const files = req.files;
@@ -3469,6 +3486,7 @@ export const editOffer = async (
           end: endDate,
         },
         min_follower,
+        engagement_rate: engagement_rate !== undefined && engagement_rate !== "" ? Number(engagement_rate) : 0,
         business_id,
         instagram_reel,
         timeId,
@@ -3537,6 +3555,7 @@ export const editOfferByBusiness = async (
     status,
     collaboration_type,
     fixed_amount,
+    engagement_rate,
   } = req.body;
 
   const files = req.files;
@@ -3585,6 +3604,7 @@ export const editOfferByBusiness = async (
           end: endDate,
         },
         min_follower,
+        engagement_rate: engagement_rate !== undefined && engagement_rate !== "" ? Number(engagement_rate) : 0,
         business_id,
         instagram_reel,
         timeId,
@@ -3711,6 +3731,9 @@ export const showOfferByID = async (
           hashtags: 1,
           content_delivery: 1,
           content_guidelines: 1,
+          min_reach: 1,
+          min_follower: 1,
+          engagement_rate: 1,
           collaboration_type: 1,
           fixed_amount: 1,
           original_fixed_amount: 1,

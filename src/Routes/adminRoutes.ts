@@ -77,7 +77,7 @@ export const adminRoutes = (app: Express): void => {
   app.post("/superadmin/acceptProfile", adminMiddleware, errCatch(AcceptedProfileRequest));
   app.post("/superadmin/restroGrade", adminMiddleware, errCatch(restroGrade));
   app.post("/superadmin/profileVerified", adminMiddleware, errCatch(profileVerified));
-  app.get("/superadmin/businessList", adminMiddleware, errCatch(listOfBusinessUser));
+  app.get("/superadmin/businessList", businessMiddleware, errCatch(listOfBusinessUser));
   app.get("/superadmin/allBusinessList", adminMiddleware, errCatch(listOfAllBusinessUser));
   app.get("/admin/dashboard", businessMiddleware, errCatch(dashboard));
   app.get("/getallusers", adminMiddleware, errCatch(getAlluser));
