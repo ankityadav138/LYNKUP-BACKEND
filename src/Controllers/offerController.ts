@@ -3895,6 +3895,7 @@ export const adminFeedback = async (req: Request | any, res: Response) => {
           bookingId: 1,
           restroFeedback: 1,
           appFeedback: 1,
+          contentLink: 1,
           createdAt: 1,
           "user.firstName": 1,
           "user.lastName": 1,
